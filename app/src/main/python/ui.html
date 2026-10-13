@@ -282,6 +282,7 @@ body.phone-app .pc-only{display:none!important}
           <img id="frame" alt="Окно Roblox" hidden>
           <div class="ph" id="ph">Окна Roblox не видно.<br>Открой игру, дальше всё найдётся само.</div>
         </div>
+        <p class="hint" id="detect" hidden></p>
         <div class="row" id="aimrow">
           <button class="btn" id="aim" type="button">Указать точку заброса</button>
           <span class="hint" id="aimhint">Розовый крестик показывает, куда макрос кликает при забросе.</span>
@@ -416,6 +417,8 @@ body.phone-app .pc-only{display:none!important}
     if (document.activeElement !== $('cmode')) $('cmode').value = s.settings.collect_mode;
     $('auto').checked = s.settings.autostart;
     if (s.phone) {
+      const d = $('detect'); d.hidden = false;
+      d.textContent = 'Детектор: ' + (s.detect || 'ещё ничего') + (s.dfps ? ' · ' + s.dfps + ' кадр/с' : '');
       document.body.classList.add('phone-app');
       $('setup').hidden = false;
       const need = ['access','capture','cast','collect'];

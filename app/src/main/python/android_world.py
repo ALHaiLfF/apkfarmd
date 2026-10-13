@@ -70,6 +70,7 @@ def _cut(r: PixelRect, bounds: PixelRect) -> PixelRect:
 
 
 _held = False
+NOTE = {"text": "", "fps": 0.0, "t": 0.0}
 
 
 def release_all() -> None:
@@ -235,6 +236,15 @@ class AndroidWorld:
             elif near is None:
                 self._roi = None
             self._look_errs = 0
+            now = time.perf_counter()
+            dt = now - NOTE["t"]
+            NOTE["t"] = now
+            if 0 < dt < 2:
+                NOTE["fps"] = 0.9 * NOTE["fps"] + 0.1 / dt
+                self.hub.fps = NOTE["fps"]
+            NOTE["text"] = ("нашла: " + src if game is not None else "") + (
+                (" · зона есть" if game.has_zone else " · зоны нет") if game is not None else "") + \
+                ((self.scanner.last or "") if game is None or not game.has_zone else "")
             return Look(game, src if game is not None else "", True)
         except Exception as exc:  # noqa: BLE001
             self._look_errs += 1

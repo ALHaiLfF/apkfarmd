@@ -49,7 +49,9 @@ def boot(files_dir: str) -> int:
     def phone_state() -> dict:
         st = aw.status()
         return {"phone": {"access": bool(st.get("access")), "capture": bool(st.get("capture")),
-                          "pkg": st.get("pkg", ""), **pts()}}
+                          "pkg": st.get("pkg", ""), **pts()},
+                "detect": aw.NOTE["text"], "dfps": round(aw.NOTE["fps"], 1),
+                "scan_area": cfg.get("scan_area")}
 
     def check() -> str | None:
         st = aw.status()
