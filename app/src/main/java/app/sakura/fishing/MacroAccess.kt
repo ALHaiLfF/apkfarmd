@@ -46,17 +46,23 @@ class MacroAccess : AccessibilityService() {
     val gFail = AtomicInteger()
     private var polling = true
 
-    // ---------- состояние удержания пальца
-    private val hl = Any()
-    private var wantHold = false
+    // ---------- состояние удержания пальца (порт Touch из исходного макроса)
+    private val tl = Any()
+    @Volatile private var tDown = false
+    @Volatile private var tBroken = false
+    @Volatile private var tStroke: StrokeDescription? = null
+    @Volatile private var tPending: CountDownLatch? = null
+    @Volatile private var tLastSent = 0L
+    private var lx = 0f
+    private var ly = 0f
     private var hx = 0f
     private var hy = 0f
-    private var cur: StrokeDescription? = null
-    private var busy = false
-    /** 0 — цепочка коротких отрезков с продолжением пальца; 1 — длинные отдельные касания, отпускание «перебивает» их. */
+    /** 0 — как в исходном макросе (палец «открыт» и живёт между жестами); 1 — длинные отдельные касания, отпускание «перебивает» их. */
     @Volatile var holdMethod = 0
     private var longOn = false
     private var longGen = 0
+    private val kThread = HandlerThread("sakura-keepalive").also { it.start() }
+    private val kHandler = Handler(kThread.looper)
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -70,6 +76,8 @@ class MacroAccess : AccessibilityService() {
             Log.w(Bridge.TAG, "core start: $t")
         }
         ui.post { addChip() }
+        kHandler.removeCallbacks(keepRun)
+        kHandler.postDelayed(keepRun, 250)
         startPolling()
     }
 
@@ -87,6 +95,7 @@ class MacroAccess : AccessibilityService() {
     override fun onInterrupt() { releaseAll() }
 
     override fun onDestroy() {
+        kHandler.removeCallbacks(keepRun)
         polling = false
         releaseAll()
         ui.post { removeChip(); removePick() }
@@ -108,39 +117,108 @@ class MacroAccess : AccessibilityService() {
     // ---------- жесты
     private fun pathAt(x: Float, y: Float): Path = Path().apply { moveTo(x, y) }
 
-    /** Короткий тап, блокирует вызывающий поток до конца жеста. */
-    fun tap(x: Float, y: Float, ms: Long): Boolean {
-        val dur = ms.coerceIn(10L, 1500L)
-        val latch = CountDownLatch(1)
-        var ok = false
-        val g = GestureDescription.Builder().addStroke(StrokeDescription(pathAt(x, y), 0, dur)).build()
-        gSent.incrementAndGet()
-        val started = dispatchGesture(g, object : GestureResultCallback() {
-            override fun onCompleted(d: GestureDescription?) { ok = true; gDone.incrementAndGet(); latch.countDown() }
-            override fun onCancelled(d: GestureDescription?) { gCancel.incrementAndGet(); latch.countDown() }
-        }, gHandler)
-        if (!started) { gFail.incrementAndGet(); return false }
-        latch.await(dur + 1500, TimeUnit.MILLISECONDS)
-        return ok
+    private fun waitPending(ms: Long) {
+        val l = tPending ?: return
+        try { l.await(ms, TimeUnit.MILLISECONDS) } catch (e: InterruptedException) { Thread.currentThread().interrupt() }
     }
 
-    /** Нажать и держать (down=true) или отпустить (false). Не блокирует. */
+    /** Отправляет жест; перед этим дожидается конца предыдущего (иначе он его отменит). */
+    private fun tSend(st: StrokeDescription, waitMs: Long): Boolean {
+        waitPending(300)
+        val latch = CountDownLatch(1)
+        val done = java.util.concurrent.atomic.AtomicBoolean(false)
+        tPending = latch
+        gSent.incrementAndGet()
+        val ok = try {
+            dispatchGesture(GestureDescription.Builder().addStroke(st).build(), object : GestureResultCallback() {
+                override fun onCompleted(d: GestureDescription?) { gDone.incrementAndGet(); done.set(true); latch.countDown() }
+                override fun onCancelled(d: GestureDescription?) {
+                    gCancel.incrementAndGet()
+                    if (tStroke === st && tDown) tBroken = true
+                    latch.countDown()
+                }
+            }, gHandler)
+        } catch (t: Throwable) { false }
+        if (!ok) { gFail.incrementAndGet(); latch.countDown(); return false }
+        tLastSent = System.currentTimeMillis()
+        if (waitMs <= 0) return true
+        try { latch.await(waitMs, TimeUnit.MILLISECONDS) } catch (e: InterruptedException) { Thread.currentThread().interrupt() }
+        return done.get()
+    }
+
+    private fun tBegin(x: Float, y: Float) {
+        if (tDown && !tBroken && x == lx && y == ly) return
+        if (tDown) tEnd()
+        tBroken = false
+        val st = StrokeDescription(pathAt(x, y), 0L, SEG_MS, true)
+        tStroke = st; tDown = true; lx = x; ly = y
+        tSend(st, 0L)
+    }
+
+    private fun tMoveTo(x: Float, y: Float, ms: Long) {
+        val prev = tStroke
+        if (!tDown || tBroken || prev == null) { tBegin(x, y); return }
+        val st = prev.continueStroke(pathAt(x, y), 0L, Math.max(1L, ms), true)
+        tStroke = st; lx = x; ly = y
+        tSend(st, 0L)
+    }
+
+    private fun tEnd() {
+        if (!tDown) return
+        tDown = false
+        val st = tStroke
+        tStroke = null
+        if (st == null || tBroken) { tBroken = false; return }
+        tSend(st.continueStroke(pathAt(lx, ly), 0L, 1L, false), 0L)
+    }
+
+    private fun tKeepAlive() {
+        if (tDown && !tBroken && System.currentTimeMillis() - tLastSent >= KEEP_ALIVE_MS) {
+            waitPending(100)
+            tMoveTo(lx, ly, SEG_MS)
+        }
+    }
+
+    private val keepRun = object : Runnable {
+        override fun run() {
+            try { synchronized(tl) { tKeepAlive() } } catch (t: Throwable) { /* ignore */ }
+            kHandler.postDelayed(this, 250)
+        }
+    }
+
+    /** Короткий тап, блокирует вызывающий поток до конца жеста. */
+    fun tap(x: Float, y: Float, ms: Long): Boolean {
+        val dur = Math.max(1L, Math.min(1500L, ms))
+        return synchronized(tl) {
+            tEnd()
+            tSend(StrokeDescription(pathAt(x, y), 0L, dur), dur + 1500)
+        }
+    }
+
+    /** Одно длинное касание ровно на ms (как «Hold» для сбора). Блокирует. */
+    fun holdFor(x: Float, y: Float, ms: Long): Boolean {
+        return synchronized(tl) {
+            tEnd()
+            waitPending(400)
+            tSend(StrokeDescription(pathAt(x, y), 0L, Math.max(1L, Math.min(MAX_STROKE_MS, ms))), ms + 2000)
+        }
+    }
+
+    /** Нажать и держать (down=true) или отпустить (false). */
     fun setHold(x: Float, y: Float, down: Boolean) {
         if (holdMethod == 1) { longHold(x, y, down); return }
-        synchronized(hl) {
+        synchronized(tl) {
             if (down) {
-                if (cur == null) { hx = x; hy = y }
-                wantHold = true
-                if (!busy) pump()
+                if (tDown && !tBroken && x == lx && y == ly) tKeepAlive()
+                tBegin(x, y)
             } else {
-                wantHold = false
-                if (!busy && cur != null) pump()
+                tEnd()
             }
         }
     }
 
     private fun longHold(x: Float, y: Float, down: Boolean) {
-        synchronized(hl) {
+        synchronized(tl) {
             if (down) {
                 if (longOn) return
                 longOn = true; hx = x; hy = y
@@ -150,7 +228,7 @@ class MacroAccess : AccessibilityService() {
                 if (!longOn) return
                 longOn = false
                 longGen++
-                // новый жест отменяет прежний — палец поднимается; тап уходит в безопасный угол у левого края
+                // новый жест отменяет прежний — палец поднимается; тап уходит в безопасное место у левого края
                 val sz = Bridge.realSize(this)
                 val g = GestureDescription.Builder()
                     .addStroke(StrokeDescription(pathAt(sz[0] * 0.012f, sz[1] * 0.5f), 0, 8L)).build()
@@ -168,11 +246,11 @@ class MacroAccess : AccessibilityService() {
             dispatchGesture(g, object : GestureResultCallback() {
                 override fun onCompleted(d: GestureDescription?) {
                     gDone.incrementAndGet()
-                    synchronized(hl) { if (longOn && gen == longGen) { longGen++; dispatchLong(longGen) } }
+                    synchronized(tl) { if (longOn && gen == longGen) { longGen++; dispatchLong(longGen) } }
                 }
                 override fun onCancelled(d: GestureDescription?) {
                     gCancel.incrementAndGet()
-                    synchronized(hl) { if (longOn && gen == longGen) { longGen++; dispatchLong(longGen) } }
+                    synchronized(tl) { if (longOn && gen == longGen) { longGen++; dispatchLong(longGen) } }
                 }
             }, gHandler)
         } catch (t: Throwable) { false }
@@ -181,46 +259,8 @@ class MacroAccess : AccessibilityService() {
 
     fun releaseAll() {
         if (longOn) longHold(hx, hy, false)
-        synchronized(hl) {
-            wantHold = false
-            if (!busy && cur != null) pump()
-        }
-    }
-
-    /** Вызывать под hl и только когда !busy. Палец продолжается маленькими отрезками, чтобы отпускать без задержки. */
-    private fun pump() {
-        val want = wantHold
-        val stroke: StrokeDescription
-        val prev = cur
-        if (prev == null) {
-            if (!want) return
-            stroke = StrokeDescription(pathAt(hx, hy), 0, HOLD_CHUNK, true)
-        } else {
-            stroke = prev.continueStroke(pathAt(hx, hy), 0, if (want) HOLD_CHUNK else 1L, want)
-        }
-        cur = if (want) stroke else null
-        busy = true
-        gSent.incrementAndGet()
-        val ok = try {
-            dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), object : GestureResultCallback() {
-                override fun onCompleted(d: GestureDescription?) {
-                    gDone.incrementAndGet()
-                    synchronized(hl) { busy = false; if (wantHold || cur != null) pump() }
-                }
-                override fun onCancelled(d: GestureDescription?) {
-                    gCancel.incrementAndGet()
-                    synchronized(hl) { busy = false; cur = null; if (wantHold) pump() }
-                }
-            }, gHandler)
-        } catch (t: Throwable) {
-            Log.w(Bridge.TAG, "dispatch: $t")
-            false
-        }
-        if (!ok) {
-            gFail.incrementAndGet()
-            busy = false
-            cur = null
-        }
+        synchronized(tl) { tEnd() }
+        waitPending(400)
     }
 
     // ---------- кнопка-сакура поверх игры
@@ -411,7 +451,9 @@ class MacroAccess : AccessibilityService() {
     }
 
     companion object {
-        const val HOLD_CHUNK = 90L
+        const val SEG_MS = 10L
+        const val KEEP_ALIVE_MS = 1000L
+        const val MAX_STROKE_MS = 59000L
         const val LONG_MS = 350L
     }
 }

@@ -91,8 +91,8 @@ def status() -> dict:
 
 
 # способ удержания: (метод Kotlin, где держим). Brain сам переключает, если шар не реагирует.
-HOLD_MODES = [(0, "cast", "цепочка касаний на точке заброса"), (1, "cast", "длинные касания на точке заброса"),
-              (0, "mid", "цепочка касаний в центре экрана"), (1, "mid", "длинные касания в центре экрана")]
+HOLD_MODES = [(0, "cast", "палец как в исходном макросе, точка заброса"), (1, "cast", "длинные касания, точка заброса"),
+              (0, "mid", "палец как в исходном макросе, центр экрана"), (1, "mid", "длинные касания, центр экрана")]
 
 
 class AndroidWorld:
@@ -415,11 +415,7 @@ class AndroidWorld:
             return
         global _held
         _held = False
-        bridge().hold(pt[0], pt[1], True)
-        try:
-            self._sleep_abortable(secs)
-        finally:
-            bridge().hold(pt[0], pt[1], False)
+        bridge().holdFor(pt[0], pt[1], int(max(0.05, secs) * 1000))
 
     def find_collect(self, bans=()):
         """Белый ромб сбора на экране -> (x, y) в пикселях кадра или None."""
@@ -461,7 +457,7 @@ class AndroidWorld:
     def set_hold(self, down: bool) -> None:
         global _held
         down = bool(down)
-        if down == _held:
+        if not down and not _held:
             return
         if HOLD_MODES[self.hold_mode][1] == "mid":
             d = bridge().displaySize()
@@ -470,8 +466,9 @@ class AndroidWorld:
             pt = self._pt("cast")
         if pt is None:
             return
+        if down != _held:
+            NOTE["holds"] += 1
         _held = down
-        NOTE["holds"] += 1
         bridge().hold(pt[0], pt[1], down)
 
     def release_all(self) -> None:

@@ -65,6 +65,7 @@ object Bridge {
 
     @JvmStatic fun tap(x: Int, y: Int, ms: Int): Boolean = access?.tap(x.toFloat(), y.toFloat(), ms.toLong()) ?: false
     @JvmStatic fun hold(x: Int, y: Int, down: Boolean) { access?.setHold(x.toFloat(), y.toFloat(), down) }
+    @JvmStatic fun holdFor(x: Int, y: Int, ms: Int): Boolean = access?.holdFor(x.toFloat(), y.toFloat(), ms.toLong()) ?: false
     @JvmStatic fun releaseAll() { access?.releaseAll() }
     @JvmStatic fun holdMethod(m: Int) { access?.let { it.releaseAll(); it.holdMethod = m } }
 
