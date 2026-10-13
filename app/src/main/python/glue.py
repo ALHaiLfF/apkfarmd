@@ -42,9 +42,9 @@ def boot(files_dir: str) -> int:
                     "collect_mode": "click", "rod_key": "slot"})
     if not cfg.get("migr2"):
         cfg.update({"reequip": True, "migr2": True})
-    if not cfg.get("migr3"):
-        # по записи реального телефона: вертикальная шкала правее и выше, чем на ПК
-        cfg.update({"scan_area": {"x": 0.79, "y": 0.04, "w": 0.06, "h": 0.70}, "migr3": True})
+    if not cfg.get("migr4"):
+        # по полноэкранным кадрам телефона: вертикальная шкала x≈0.733–0.769, y≈0.157–0.70 высоты экрана
+        cfg.update({"scan_area": {"x": 0.728, "y": 0.15, "w": 0.046, "h": 0.56}, "migr4": True})
     hub = Hub()
     sup = Supervisor(cfg, hub, aw.AndroidWorld, aw.release_all)
 
