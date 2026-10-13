@@ -71,7 +71,7 @@ def _cut(r: PixelRect, bounds: PixelRect) -> PixelRect:
 
 
 _held = False
-NOTE = {"text": "", "fps": 0.0, "t": 0.0, "grab_ms": 0.0, "find_ms": 0.0, "holds": 0, "taps": 0, "errs": 0, "err": ""}
+NOTE = {"hold": "", "text": "", "fps": 0.0, "t": 0.0, "grab_ms": 0.0, "find_ms": 0.0, "holds": 0, "taps": 0, "errs": 0, "err": ""}
 
 
 def release_all() -> None:
@@ -90,6 +90,11 @@ def status() -> dict:
         return {"access": False, "capture": False, "pkg": "", "w": 0, "h": 0}
 
 
+# способ удержания: (метод Kotlin, где держим). Brain сам переключает, если шар не реагирует.
+HOLD_MODES = [(0, "cast", "цепочка касаний на точке заброса"), (1, "cast", "длинные касания на точке заброса"),
+              (0, "mid", "цепочка касаний в центре экрана"), (1, "mid", "длинные касания в центре экрана")]
+
+
 class AndroidWorld:
     missing_msg = "Не вижу экран (захват выключен) — жду"
 
@@ -104,6 +109,37 @@ class AndroidWorld:
         self._look_errs = 0
         self._err_logged = 0.0
         self._no_pt_logged = 0.0
+        self._last_cast = 0.0
+        self._cast_skipped = 0.0
+        try:
+            self.hold_mode = int(self.cfg.get("hold_mode") or 0) % len(HOLD_MODES)
+        except (TypeError, ValueError):
+            self.hold_mode = 0
+        self.hold_known = False
+
+    # ---- способ удержания
+    def _apply_hold_mode(self) -> None:
+        try:
+            bridge().holdMethod(HOLD_MODES[self.hold_mode][0])
+        except Exception:  # noqa: BLE001
+            pass
+        NOTE["hold"] = f"{self.hold_mode + 1}/{len(HOLD_MODES)} {HOLD_MODES[self.hold_mode][2]}"
+
+    def next_hold_mode(self) -> str:
+        global _held
+        self.set_hold(False)
+        release_all()
+        self.hold_mode = (self.hold_mode + 1) % len(HOLD_MODES)
+        self.hold_known = False
+        self._apply_hold_mode()
+        return HOLD_MODES[self.hold_mode][2]
+
+    def hold_works(self) -> None:
+        if not self.hold_known:
+            self.hold_known = True
+            if self.cfg.get("hold_mode") != self.hold_mode:
+                self.cfg.update({"hold_mode": self.hold_mode})
+            self.hub.event("info", f"Удержание работает: {HOLD_MODES[self.hold_mode][2]}")
 
     # ---- время
     def now(self) -> float:
@@ -123,6 +159,7 @@ class AndroidWorld:
         self.scanner.configure(self.cfg.get("bar_colors"), adv["yellow_boost"], adv["green_boost"], adv["white_boost"])
         self.wide_scanner.configure(self.cfg.get("bar_colors"), adv["yellow_boost"], adv["green_boost"], adv["white_boost"])
         release_all()
+        self._apply_hold_mode()
 
     def close(self) -> None:
         release_all()
@@ -353,6 +390,13 @@ class AndroidWorld:
         pt = self._pt("cast")
         if pt is None:
             return
+        now = time.monotonic()
+        if now - self._last_cast < 2.0:      # частокол касаний по кнопке заброса не нужен ни игре, ни нам
+            if now - self._cast_skipped > 10:
+                self._cast_skipped = now
+                self.hub.event("info", "Слишком частый заброс — пропускаю лишнее касание")
+            return
+        self._last_cast = now
         hold = max(0.05, self.cfg.adv("mouse_click_hold_sec"))
         NOTE["taps"] += 1
         bridge().tap(pt[0], pt[1], int(hold * 1000))
@@ -419,7 +463,11 @@ class AndroidWorld:
         down = bool(down)
         if down == _held:
             return
-        pt = self._pt("cast")
+        if HOLD_MODES[self.hold_mode][1] == "mid":
+            d = bridge().displaySize()
+            pt = (int(d[0] * 0.5), int(d[1] * 0.5))
+        else:
+            pt = self._pt("cast")
         if pt is None:
             return
         _held = down

@@ -34,6 +34,7 @@ object Bridge {
         o.put("access", access != null)
         o.put("capture", grabber?.ready() == true)
         o.put("pkg", foregroundPkg())
+        o.put("hm", access?.holdMethod ?: -1)
         val s = screenSize()
         o.put("w", s[0]); o.put("h", s[1])
         val a = access
@@ -65,6 +66,7 @@ object Bridge {
     @JvmStatic fun tap(x: Int, y: Int, ms: Int): Boolean = access?.tap(x.toFloat(), y.toFloat(), ms.toLong()) ?: false
     @JvmStatic fun hold(x: Int, y: Int, down: Boolean) { access?.setHold(x.toFloat(), y.toFloat(), down) }
     @JvmStatic fun releaseAll() { access?.releaseAll() }
+    @JvmStatic fun holdMethod(m: Int) { access?.let { it.releaseAll(); it.holdMethod = m } }
 
     @JvmStatic fun foregroundPkg(): String = access?.foregroundPkg() ?: ""
 

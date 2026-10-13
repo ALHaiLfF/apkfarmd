@@ -53,6 +53,10 @@ class MacroAccess : AccessibilityService() {
     private var hy = 0f
     private var cur: StrokeDescription? = null
     private var busy = false
+    /** 0 — цепочка коротких отрезков с продолжением пальца; 1 — длинные отдельные касания, отпускание «перебивает» их. */
+    @Volatile var holdMethod = 0
+    private var longOn = false
+    private var longGen = 0
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -122,6 +126,7 @@ class MacroAccess : AccessibilityService() {
 
     /** Нажать и держать (down=true) или отпустить (false). Не блокирует. */
     fun setHold(x: Float, y: Float, down: Boolean) {
+        if (holdMethod == 1) { longHold(x, y, down); return }
         synchronized(hl) {
             if (down) {
                 if (cur == null) { hx = x; hy = y }
@@ -134,7 +139,48 @@ class MacroAccess : AccessibilityService() {
         }
     }
 
+    private fun longHold(x: Float, y: Float, down: Boolean) {
+        synchronized(hl) {
+            if (down) {
+                if (longOn) return
+                longOn = true; hx = x; hy = y
+                longGen++
+                dispatchLong(longGen)
+            } else {
+                if (!longOn) return
+                longOn = false
+                longGen++
+                // новый жест отменяет прежний — палец поднимается; тап уходит в безопасный угол у левого края
+                val sz = Bridge.realSize(this)
+                val g = GestureDescription.Builder()
+                    .addStroke(StrokeDescription(pathAt(sz[0] * 0.012f, sz[1] * 0.5f), 0, 8L)).build()
+                gSent.incrementAndGet()
+                val ok = try { dispatchGesture(g, null, gHandler) } catch (t: Throwable) { false }
+                if (!ok) gFail.incrementAndGet()
+            }
+        }
+    }
+
+    private fun dispatchLong(gen: Int) {
+        val g = GestureDescription.Builder().addStroke(StrokeDescription(pathAt(hx, hy), 0, LONG_MS)).build()
+        gSent.incrementAndGet()
+        val ok = try {
+            dispatchGesture(g, object : GestureResultCallback() {
+                override fun onCompleted(d: GestureDescription?) {
+                    gDone.incrementAndGet()
+                    synchronized(hl) { if (longOn && gen == longGen) { longGen++; dispatchLong(longGen) } }
+                }
+                override fun onCancelled(d: GestureDescription?) {
+                    gCancel.incrementAndGet()
+                    synchronized(hl) { if (longOn && gen == longGen) { longGen++; dispatchLong(longGen) } }
+                }
+            }, gHandler)
+        } catch (t: Throwable) { false }
+        if (!ok) { gFail.incrementAndGet(); longOn = false }
+    }
+
     fun releaseAll() {
+        if (longOn) longHold(hx, hy, false)
         synchronized(hl) {
             wantHold = false
             if (!busy && cur != null) pump()
@@ -366,5 +412,6 @@ class MacroAccess : AccessibilityService() {
 
     companion object {
         const val HOLD_CHUNK = 90L
+        const val LONG_MS = 350L
     }
 }

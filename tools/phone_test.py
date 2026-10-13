@@ -41,6 +41,7 @@ class FakeBridge:
     def tap(self, x, y, ms): self.calls.append(("tap", x, y, ms)); return True
     def hold(self, x, y, down): self.calls.append(("hold", x, y, down))
     def releaseAll(self): self.calls.append(("release",))
+    def holdMethod(self, m): self.calls.append(("method", m))
     def launchGame(self): self.calls.append(("launch",)); self.pkg = "com.roblox.client"; return True
 
 

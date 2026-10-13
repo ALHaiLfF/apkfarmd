@@ -178,6 +178,7 @@ class Brain:
     def cast(self) -> None:
         self.phase("cast")
         self.ensure_window()
+        self.hub.event("info", "Бросаю удочку")
         self.w.click_cast()
         self.sleep(self.v("cast_after_sec"))
 
@@ -355,6 +356,9 @@ class Brain:
         fps_dt = 1.0 / max(5.0, self.v("task_fps"))
         samples: list[tuple] = []
         result = "done"
+        probe = getattr(self.w, "next_hold_mode", None)     # на телефоне способ удержания подбирается по реакции шара
+        held_since = None
+        held_y0 = best_y = 0.0
         try:
             while True:
                 self.guard()
@@ -371,7 +375,24 @@ class Brain:
                     last_seen = now
                     near = (g.ball_x, g.ball_y)
                     self.tr.observe(g.ball_y, g.ball_h, g.zone_top, g.zone_y, now)
-                    self.w.set_hold(bool(self.tr.decide(now)))
+                    want = bool(self.tr.decide(now))
+                    self.w.set_hold(want)
+                    if probe is not None and g.has_zone:
+                        below = g.ball_y > g.zone_y + 1.5 * g.ball_h     # шар явно ниже зоны — держим, он обязан ползти вверх
+                        if want and below:
+                            if held_since is None:
+                                held_since, held_y0, best_y = now, g.ball_y, g.ball_y
+                            best_y = min(best_y, g.ball_y)
+                            if held_y0 - best_y >= max(6.0, 0.5 * g.ball_h):
+                                self.w.hold_works()
+                                held_since, held_y0, best_y = now, g.ball_y, g.ball_y
+                            elif now - held_since > (2.5 if getattr(self.w, "hold_known", False) else 1.0):
+                                how = probe()
+                                self.hub.event("warn", f"Шар не поднимается при удержании — пробую другой способ: {how}")
+                                held_since = None
+                                self.tr.held = False
+                        else:
+                            held_since = None
                     if g.has_zone:
                         samples.append((g.ball_x, g.ball_y, g.zone_top, g.zone_bot, g.ball_w))
                     self.hub.track = self.w.overlay(g)

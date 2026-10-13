@@ -61,7 +61,7 @@ def boot(files_dir: str) -> int:
 
     def diag(st: dict) -> str:
         n = aw.NOTE
-        return (f"экран {st.get('w')}×{st.get('h')} · кадров {st.get('frames')} (свежесть {st.get('age')} мс) · "
+        return (f"приложение «{st.get('pkg')}» · удержание: {n.get('hold')} · экран {st.get('w')}×{st.get('h')} · кадров {st.get('frames')} (свежесть {st.get('age')} мс) · "
                 f"грэб {n['grab_ms']:.0f} мс · касаний {n['taps']}, удержаний {n['holds']} · "
                 f"жесты отпр/готово/отмен/сбой {st.get('g')} · ошибок захвата {n['errs']} {n['err']}")
 
