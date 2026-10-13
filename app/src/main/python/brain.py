@@ -212,8 +212,8 @@ class Brain:
             self.guard()
             p = fc(self.dbans)
             if p is not None:
-                if prev is not None and abs(p[0] - prev[0]) < 60 and abs(p[1] - prev[1]) < 60:
-                    return p
+                if prev is not None:
+                    return p          # кнопка прыгает по экрану — подтверждаем «видна 2 кадра подряд», место не сверяем
                 prev = p
             else:
                 prev = None
@@ -224,16 +224,16 @@ class Brain:
     def collect_visual(self, fc, hold: float) -> None:
         seen = False
         last = None
-        for attempt in range(5):
+        for attempt in range(8):
             p = self._diamond(fc, 4.0 if not seen else 1.2)
             if p is None:
                 if not seen:
-                    self.hub.event("info", "Ромб сбора не вижу — жму в сохранённую точку")
+                    self.hub.event("info", "Кнопку сбора не вижу — жму в сохранённую точку")
                     self.w.hold_collect_click(hold)
                 return   # видели и пропал — значит собрано
             seen, last = True, p
             t0 = self.w.now()
-            gone = far = None
+            gone = None
             self.w.hold_pixel(p[0], p[1], True)
             try:
                 while self.w.now() - t0 < hold + 1.0:
@@ -247,12 +247,6 @@ class Brain:
                             break
                     else:
                         gone = None
-                        if abs(q[0] - p[0]) > 90 or abs(q[1] - p[1]) > 90:
-                            far = far or now                 # игра отодвинула кнопку — палец уже мимо
-                            if now - far > 0.4:
-                                break
-                        else:
-                            far = None
             finally:
                 self.w.hold_pixel(p[0], p[1], False)
             self.sleep(0.25)
@@ -261,7 +255,7 @@ class Brain:
         if last is not None:
             self.dbans.append(last)
             self.dbans = self.dbans[-6:]
-            self.hub.event("warn", "Ромб не исчезает после 5 попыток — считаю его ложным и игнорирую")
+            self.hub.event("warn", "Кнопка не исчезает после 8 попыток — считаю его ложным и игнорирую")
 
     def leftover(self) -> bool:
         """Есть ли на экране несобранный ромб (рыба осталась)."""
@@ -303,7 +297,7 @@ class Brain:
                 if self.leftover():
                     self.found_leftover = True
                     return None
-            look = self.w.look(None, self.force_wide or n % 3 == 2)
+            look = self.w.look(None, self.force_wide or n % 2 == 1)
             n += 1
             if not look.ok:
                 self.bad_looks += 1

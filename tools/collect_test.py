@@ -54,5 +54,5 @@ def expect(name, cond, extra=""):
 w, b, m = run("ok");     expect("обычный сбор: держит и ромб исчезает", w.gone and w.fixed == 0, str([x for x in w.log][:4]))
 w, b, m = run("moves");  expect("кнопку отодвинули: перехватывает на новом месте", w.gone and w.moved, str(w.log))
 w, b, m = run("never");  expect("ромба не видно: жмёт в сохранённую точку один раз", w.fixed == 1 and not w.log, str(m))
-w, b, m = run("static"); expect("ложный ромб: 5 попыток, потом в игнор", len(b.dbans) == 1 and sum(1 for l in w.log if l[3]) == 5, f"{len(b.dbans)} {m[-2:]}")
+w, b, m = run("static"); expect("ложная кнопка: 8 попыток, потом в игнор", len(b.dbans) == 1 and sum(1 for l in w.log if l[3]) == 8, f"{len(b.dbans)} {m[-2:]}")
 print("ВСЁ ХОРОШО" if ok else "ЕСТЬ ПРОВАЛЫ"); sys.exit(0 if ok else 1)

@@ -19,7 +19,7 @@ import numpy as np
 from brain import Look
 from config import Config
 import diamond
-from detect import Detector
+from detect import Detector, Game
 
 cv2.setNumThreads(2)
 
@@ -97,6 +97,7 @@ class AndroidWorld:
         self.cfg = cfg
         self.hub = hub
         self.scanner = Detector()
+        self.wide_scanner = Detector()   # широкий поиск идёт на кадре вдвое меньше — своя копия, т.к. хранит размеры в пикселях
         self.abort = lambda: False
         self._roi: PixelRect | None = None
         self._small = None
@@ -120,6 +121,7 @@ class AndroidWorld:
     def open(self) -> None:
         adv = self.cfg.advanced_all()
         self.scanner.configure(self.cfg.get("bar_colors"), adv["yellow_boost"], adv["green_boost"], adv["white_boost"])
+        self.wide_scanner.configure(self.cfg.get("bar_colors"), adv["yellow_boost"], adv["green_boost"], adv["white_boost"])
         release_all()
 
     def close(self) -> None:
@@ -226,7 +228,7 @@ class AndroidWorld:
                 if game is not None and not self._in_box(area, game) and (near is None or not game.has_zone):
                     game = None
             if game is None and wide:
-                game = self.scanner.find(self._grab(c.x, c.y, c.w, c.h), (c.x, c.y), near)
+                game = self._wide_find(c, near)
                 src = "wide"
             if game is not None:
                 w = max(4, int(game.ball_w))
@@ -257,6 +259,22 @@ class AndroidWorld:
                 self._roi = None
                 self._look_errs = 0
             return Look(None, "", False)
+
+    def _wide_find(self, c: PixelRect, near):
+        """Поиск по всему экрану на уменьшенном вдвое кадре (в 4–5 раз дешевле), результат — в пикселях полного кадра."""
+        ow, oh = max(2, c.w // 2), max(2, c.h // 2)
+        arr = bridge().scaled(ow, oh)
+        if arr is None:
+            raise RuntimeError("нет кадра")
+        small = _rgba_to_bgr(_u8(arr), ow, oh)
+        sx, sy = c.w / float(ow), c.h / float(oh)
+        n = None if near is None else (near[0] / sx, near[1] / sy)
+        g = self.wide_scanner.find(small, (0, 0), n)
+        if g is None:
+            return None
+        sc = lambda v, k: None if v is None else int(round(v * k))  # noqa: E731
+        return Game(g.ball_x * sx, g.ball_y * sy, int(round(g.ball_w * sx)), int(round(g.ball_h * sy)),
+                    sc(g.zone_x0, sx), sc(g.zone_x1, sx), sc(g.zone_top, sy), sc(g.zone_bot, sy))
 
     def motion(self):
         try:
@@ -365,17 +383,17 @@ class AndroidWorld:
             arr = bridge().scaled(ow, oh)
             if arr is None:
                 return None
-            cands = diamond.find_diamonds(_rgba_to_bgr(_u8(arr), ow, oh), 4)
+            small = _rgba_to_bgr(_u8(arr), ow, oh)
+            cp = self.cfg.get("cast")
+            avoid = [(float(cp["x"]) * ow, float(cp["y"]) * oh)] if isinstance(cp, dict) and "x" in cp else []
+            cands = diamond.find_collect_icon(small, avoid)
         except Exception:  # noqa: BLE001
             return None
         k = W / float(ow)
-        pts = [(cx * k, cy * (H / float(oh))) for cx, cy, _w, _h in cands]
+        pts = [(cx * k, cy * (H / float(oh))) for cx, cy, _w, _h, _d in cands]
         pts = [p for p in pts if not any(abs(p[0] - bx) < 50 and abs(p[1] - by) < 50 for bx, by in bans)]
         if not pts:
             return None
-        ref = self._pt("collect", {"x": 0.5, "y": 0.4})
-        if ref is not None:
-            pts.sort(key=lambda p: (p[0] - ref[0]) ** 2 + (p[1] - ref[1]) ** 2)
         return pts[0]
 
     def hold_pixel(self, x: float, y: float, down: bool) -> None:
