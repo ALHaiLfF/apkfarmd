@@ -304,6 +304,7 @@ body.phone-app .pc-only{display:none!important}
 
       <section class="panel mint" aria-label="Журнал">
         <h2>Журнал</h2>
+        <div class="row"><button class="btn" id="copylog" type="button">Скопировать журнал</button></div>
         <ul class="log" id="log"><li class="empty">Пока тихо. Здесь появятся уловы и самовосстановления.</li></ul>
       </section>
 
@@ -393,6 +394,7 @@ body.phone-app .pc-only{display:none!important}
       const d = $('s-catch'); d.classList.remove('pop'); void d.offsetWidth; d.classList.add('pop');
     }
     lastCatches = s.catches;
+    window.__s = s;
     $('s-catch').textContent = s.catches;
     $('s-rate').textContent = s.per_hour ? s.per_hour : (s.last10 ? s.last10*6 : 0);
     $('s-time').textContent = fmt(s.uptime);
@@ -405,7 +407,7 @@ body.phone-app .pc-only{display:none!important}
     // журнал
     if (s.log && s.log.length) {
       for (const e of s.log) if (e.n > seq) { logItems.push(e); seq = e.n; }
-      while (logItems.length > 60) logItems.shift();
+      while (logItems.length > 120) logItems.shift();
       const ul = $('log'); ul.innerHTML = '';
       for (const e of logItems.slice().reverse()) {
         const li = document.createElement('li'); li.className = e.k;
@@ -499,6 +501,13 @@ body.phone-app .pc-only{display:none!important}
     const u = $('url').textContent;
     try { await navigator.clipboard.writeText(u); toast('Ссылка скопирована'); }
     catch (e) { const r=document.createRange(); r.selectNodeContents($('url')); const s=getSelection(); s.removeAllRanges(); s.addRange(r); toast('Выделила ссылку, скопируй вручную'); }
+  };
+  $('copylog').onclick = () => {
+    const s = window.__s || {};
+    const lines = [(s.diag || ''), (s.detect || ''), ''].concat(logItems.map(e => hms(e.t) + ' [' + e.k + '] ' + e.m));
+    const text = lines.join('\n');
+    if (window.Android && Android.copy) Android.copy(text);
+    else if (navigator.clipboard) navigator.clipboard.writeText(text);
   };
   document.querySelectorAll('#setup [data-do]').forEach(b => b.onclick = () => {
     window.__setupTouched = true;

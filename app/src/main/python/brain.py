@@ -84,7 +84,7 @@ class Brain:
         self.last_upkeep = 0.0
         self.focus_fail = 0
         self.still_since: float | None = None
-        self.bans: list[tuple[float, float]] = []
+        self.bans: list[tuple[float, float, float]] = []
         self.bad_looks = 0
         self.dbans: list = []
         self.found_leftover = False
@@ -274,7 +274,25 @@ class Brain:
         return min(base, 40.0)
 
     def _banned(self, g) -> bool:
-        return any(abs(g.ball_x - bx) < 14 and abs(g.ball_y - by) < 14 for bx, by in self.bans)
+        now = self.w.now()
+        self.bans = [b for b in self.bans if now - b[2] < 90.0]     # бан живёт 90 с: настоящую шкалу нельзя похоронить навсегда
+        return any(abs(g.ball_x - bx) < 14 and abs(g.ball_y - by) < 14 for bx, by, _t in self.bans)
+
+    def trial_hold(self, g) -> bool:
+        """Неподвижный «шар» может быть настоящим (ждёт нажатия). Жмём 0.8 с: поехал вверх — это игра."""
+        y0, best = g.ball_y, g.ball_y
+        self.w.set_hold(True)
+        try:
+            end = self.w.now() + 0.8
+            while self.w.now() < end:
+                self.guard()
+                lk = self.w.look((g.ball_x, g.ball_y), True)
+                if lk.game is not None and abs(lk.game.ball_x - g.ball_x) < 40:
+                    best = min(best, lk.game.ball_y)
+                self.sleep(0.05)
+        finally:
+            self.w.set_hold(False)
+        return y0 - best >= max(6.0, 0.5 * g.ball_h)
 
     # ------------------------------------------------------------------ ожидание поклёвки
     def wait_for_minigame(self, deadline: float):
@@ -321,7 +339,10 @@ class Brain:
                     if hits >= 2 * need and moved:
                         return g, look.src
                     if hits >= 2 * need + 10 and not moved:
-                        self.bans.append((g.ball_x, g.ball_y))
+                        if self.trial_hold(g):
+                            self.hub.event("info", "Неподвижный шар на нажатие отозвался — это настоящая миниигра")
+                            return g, look.src
+                        self.bans.append((g.ball_x, g.ball_y, self.w.now()))
                         self.hub.event("info", "Отсёк статичный ложный объект")
                         hits, ys, last = 0, [], None
                         g = None
@@ -359,6 +380,8 @@ class Brain:
         probe = getattr(self.w, "next_hold_mode", None)     # на телефоне способ удержания подбирается по реакции шара
         held_since = None
         held_y0 = best_y = 0.0
+        n_loops = n_seen = n_toggle = 0
+        was_want = False
         try:
             while True:
                 self.guard()
@@ -368,6 +391,7 @@ class Brain:
                 look = self.w.look(near, lost > 0.25)
                 now = self.w.now()
                 g = look.game
+                n_loops += 1
                 if not look.ok and not self.w.window_ok():
                     result = "window"
                     break
@@ -375,7 +399,11 @@ class Brain:
                     last_seen = now
                     near = (g.ball_x, g.ball_y)
                     self.tr.observe(g.ball_y, g.ball_h, g.zone_top, g.zone_y, now)
+                    n_seen += 1
                     want = bool(self.tr.decide(now))
+                    if want != was_want:
+                        n_toggle += 1
+                        was_want = want
                     self.w.set_hold(want)
                     if probe is not None and g.has_zone:
                         below = g.ball_y > g.zone_y + 1.5 * g.ball_h     # шар явно ниже зоны — держим, он обязан ползти вверх
@@ -386,7 +414,7 @@ class Brain:
                             if held_y0 - best_y >= max(6.0, 0.5 * g.ball_h):
                                 self.w.hold_works()
                                 held_since, held_y0, best_y = now, g.ball_y, g.ball_y
-                            elif now - held_since > (2.5 if getattr(self.w, "hold_known", False) else 1.0):
+                            elif now - held_since > (3.0 if getattr(self.w, "hold_known", False) else 1.0):
                                 how = probe()
                                 self.hub.event("warn", f"Шар не поднимается при удержании — пробую другой способ: {how}")
                                 held_since = None
@@ -413,6 +441,7 @@ class Brain:
             self.w.set_hold(False)
             self.hub.track = None
         dur = self.w.now() - t_begin
+        self.hub.event("info", f"Миниигра: {dur:.1f} с, шар виден в {n_seen} из {n_loops} кадров, смен нажал/отпустил: {n_toggle}, итог: {result}")
         if result == "done" and dur < min_s + grace:
             return "noise"
         if result in ("done", "timeout") and src == "wide" and len(samples) > 20:
@@ -461,6 +490,7 @@ class Brain:
         self.w.release_all()
         self.ensure_window()
         self.force_wide = True
+        self.bans = []
         self.still_since = None
         self.deep_flag = None
         self.sleep(1.5)

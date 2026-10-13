@@ -155,6 +155,14 @@ class MainActivity : Activity() {
             a.startPick(name)
         }
 
+        @JavascriptInterface fun copy(text: String) {
+            ui.post {
+                val cm = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("journal", text))
+                Toast.makeText(this@MainActivity, "Журнал скопирован — вставь его в чат", Toast.LENGTH_LONG).show()
+            }
+        }
+
         @JavascriptInterface fun snap() {
             ui.post { Toast.makeText(this@MainActivity, "Открываю игру, через 6 с сохраню кадр", Toast.LENGTH_LONG).show() }
             Bridge.launchGame()
