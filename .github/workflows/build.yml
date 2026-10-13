@@ -21,7 +21,17 @@ jobs:
         with:
           gradle-version: '8.7'
       - name: Build debug APK
-        run: gradle --no-daemon --stacktrace assembleDebug
+        run: set -o pipefail; gradle --no-daemon --stacktrace assembleDebug 2>&1 | tee build.log
+      - name: Report errors
+        if: failure()
+        run: |
+          {
+            grep -n -E "What went wrong|Could not|error:|^e: |FAILED|No matching|ERROR|Caused by" -A6 build.log | head -120
+            echo "----- tail -----"
+            tail -40 build.log
+          } > err.txt
+          msg=$(head -c 30000 err.txt | sed ':a;N;$!ba;s/%/%25/g;s/\r/%0D/g;s/\n/%0A/g')
+          echo "::error title=gradle::$msg"
       - name: Rename
         run: cp app/build/outputs/apk/debug/app-debug.apk SakuraFishing.apk
       - uses: actions/upload-artifact@v4
