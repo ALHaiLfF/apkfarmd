@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Рыбачка</string>
+    <string name="access_desc">Нажимает и удерживает точки на экране за вас, а также следит, какая игра открыта. Нужно для авто-рыбалки.</string>
+</resources>

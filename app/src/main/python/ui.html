@@ -1,0 +1,551 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14102b">
+<title>Рыбачка · авто-рыбалка</title>
+<style>
+:root{
+  --night:#14102b; --dusk:#2a1d5e; --plum:#3b2a8c; --sakura:#ff7eb6; --mint:#6ff2d6;
+  --gold:#ffd36e; --paper:#fff6fb; --ink:#0d0a1f; --alert:#ff8a7a;
+  --font:"Yu Gothic UI","Meiryo UI","Hiragino Sans","Noto Sans JP","Segoe UI",system-ui,sans-serif;
+  --pad:clamp(14px,3.2vw,28px);
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{color-scheme:dark}
+body{
+  margin:0; min-height:100vh; font:500 16px/1.5 var(--font); color:var(--paper);
+  background:
+    radial-gradient(1200px 600px at 85% -10%, #5a2f9b55, transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, #ff7eb622, transparent 60%),
+    linear-gradient(180deg,#1a1340 0%, var(--night) 55%, #0f0b22 100%);
+  background-attachment:fixed;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+#petals{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
+.wrap{position:relative;z-index:1;max-width:1180px;margin:0 auto;padding:var(--pad)}
+:focus-visible{outline:3px solid var(--gold);outline-offset:3px;border-radius:6px}
+
+/* шапка */
+header{display:flex;align-items:center;gap:14px;margin-bottom:var(--pad)}
+.mark{
+  flex:none; white-space:nowrap; font-weight:900; font-size:clamp(30px,6vw,54px); line-height:1; letter-spacing:.02em;
+  color:var(--night); -webkit-text-stroke:0; paint-order:stroke fill;
+  text-shadow:-2px -2px 0 var(--paper),2px -2px 0 var(--paper),-2px 2px 0 var(--paper),2px 2px 0 var(--paper),5px 5px 0 var(--sakura);
+}
+.title{font-weight:800;font-size:clamp(17px,2.4vw,22px);line-height:1.2}
+.title small{display:block;font-weight:500;font-size:13px;color:#cdbfff;margin-top:2px}
+.link{margin-left:auto;white-space:nowrap;flex:none;display:flex;align-items:center;gap:8px;font-size:13px;color:#cdbfff}
+.dot{width:10px;height:10px;border-radius:50%;background:#7b6fa8;box-shadow:0 0 0 3px #7b6fa833}
+.dot.on{background:var(--mint);box-shadow:0 0 0 3px #6ff2d633}
+.dot.bad{background:var(--alert);box-shadow:0 0 0 3px #ff8a7a33}
+
+
+/* телефон: мастер настройки */
+.todo{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.todo li{display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:center;font-size:14px;line-height:1.3}
+.todo .mk{width:24px;height:24px;border-radius:50%;border:2px solid var(--paper);display:grid;place-items:center;font-size:14px;color:transparent}
+.todo li.ok .mk{background:var(--mint);border-color:var(--mint);color:var(--ink)}
+.todo li.ok .btn{opacity:.6}
+.todo small{display:block;color:#cdbfff;font-weight:500;font-size:12px}
+
+/* панель */
+.panel{
+  position:relative; background:linear-gradient(160deg,#2a1d5ecc,#1b1442cc);
+  border:3px solid var(--paper); border-radius:26px 6px 26px 6px;
+  box-shadow:7px 7px 0 var(--sakura); padding:var(--pad);
+}
+.panel.mint{box-shadow:7px 7px 0 var(--mint)}
+.panel.gold{box-shadow:7px 7px 0 var(--gold)}
+.panel h2{margin:0 0 12px;font-size:17px;font-weight:800}
+.grid{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:calc(var(--pad)*1.2);align-items:start}
+.col{display:grid;gap:calc(var(--pad)*1.2)}
+@media (max-width:860px){.grid{grid-template-columns:1fr}}
+
+/* героиня */
+.stage{padding-bottom:0;overflow:hidden}
+.hero{display:grid;place-items:center;position:relative;min-height:250px}
+.kana{position:absolute;right:2px;top:0;writing-mode:vertical-rl;font-weight:900;font-size:44px;color:#ffffff14;letter-spacing:.1em;user-select:none}
+svg.girl{width:min(280px,70%);height:auto;overflow:visible}
+.girl .eyes>g,.girl .mouths>g,.girl .extra>g{display:none}
+.girl[data-mood=calm] .e-calm,.girl[data-mood=calm] .m-smile,
+.girl[data-mood=sleepy] .e-sleepy,.girl[data-mood=sleepy] .m-smile,
+.girl[data-mood=focus] .e-focus,.girl[data-mood=focus] .m-o,
+.girl[data-mood=happy] .e-happy,.girl[data-mood=happy] .m-open,
+.girl[data-mood=worried] .e-calm,.girl[data-mood=worried] .m-worry,.girl[data-mood=worried] .x-worry{display:block}
+.girl[data-mood=focus] .x-focus{display:block}
+.girl[data-mood=happy] .x-spark{display:block}
+.bobber{transform-origin:222px 150px}
+.girl[data-mood=calm] .bobber{animation:bob 2.4s ease-in-out infinite}
+.girl[data-mood=focus] .bobber{animation:jerk .5s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(7px)}}
+@keyframes jerk{50%{transform:translate(-3px,9px)}}
+
+/* диалог как в визуальной новелле */
+.dialog{
+  margin:0 calc(var(--pad)*-1); padding:14px var(--pad) 16px; background:#0d0a1fcc;
+  border-top:3px solid var(--paper); position:relative; min-height:104px;
+}
+.name{
+  position:absolute; top:-17px; left:var(--pad); background:var(--sakura); color:var(--ink);
+  font-weight:900; padding:1px 16px 2px; border:3px solid var(--paper); border-radius:14px 4px 14px 4px;
+}
+.say{margin:10px 0 0;font-size:clamp(16px,2.2vw,19px);font-weight:700;min-height:2.9em}
+.badge{position:absolute;right:var(--pad);top:-15px;background:var(--gold);color:var(--ink);font-weight:900;
+  padding:0 12px;border:3px solid var(--paper);border-radius:4px 14px 4px 14px}
+
+/* старт */
+.go{display:grid;place-items:center;padding:calc(var(--pad)*.9) 0 4px}
+.startbtn{
+  appearance:none;border:4px solid var(--paper);cursor:pointer;font:900 22px/1.1 var(--font);color:var(--ink);
+  width:min(100%,360px);padding:16px 22px;border-radius:40px 10px 40px 10px;
+  background:linear-gradient(180deg,#ffd0e6,var(--sakura)); box-shadow:0 7px 0 #b84a82, 0 18px 30px #ff7eb633;
+  transition:transform .08s, box-shadow .08s;
+}
+.startbtn small{display:block;font-weight:700;font-size:13px;opacity:.75;margin-top:3px}
+.startbtn:active{transform:translateY(5px);box-shadow:0 2px 0 #b84a82}
+.startbtn.run{background:linear-gradient(180deg,#d9fff6,var(--mint));box-shadow:0 7px 0 #2f9c86,0 18px 30px #6ff2d633}
+.startbtn.run:active{box-shadow:0 2px 0 #2f9c86}
+
+/* путь рыбалки */
+.track{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:6px}
+.step{text-align:center;padding:8px 4px;border:2px solid #ffffff33;border-radius:12px 4px 12px 4px;color:#b7a9ec;font-weight:800;font-size:14px}
+.step b{display:block;font-size:20px;color:inherit}
+.step.on{border-color:var(--paper);background:var(--mint);color:var(--ink);box-shadow:3px 3px 0 var(--paper)}
+.step.on.warn{background:var(--gold)}
+
+/* превью */
+.shot{position:relative;border:3px solid var(--paper);border-radius:14px 4px 14px 4px;overflow:hidden;background:#0d0a1f;aspect-ratio:16/9}
+.shot img{display:block;width:100%;height:100%;object-fit:contain}
+.shot .ph{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:16px;color:#b7a9ec;font-weight:700}
+.shot.aim{cursor:crosshair;outline:3px dashed var(--gold);outline-offset:3px}
+.row{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px;align-items:center}
+.btn{appearance:none;font:800 14px var(--font);color:var(--paper);background:transparent;border:2px solid var(--paper);
+  border-radius:12px 4px 12px 4px;padding:8px 14px;cursor:pointer}
+.btn:hover{background:#ffffff1a}.btn.hot{background:var(--gold);color:var(--ink)}
+.hint{font-size:13px;color:#cdbfff;margin:8px 0 0}
+
+/* цифры */
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:0}
+.stats div{background:#0d0a1f88;border-radius:12px 4px 12px 4px;padding:10px 14px;border:2px solid #ffffff22}
+.stats dt{font-size:13px;color:#cdbfff;font-weight:700}
+.stats dd{margin:0;font-size:30px;font-weight:900;line-height:1.1;font-variant-numeric:tabular-nums}
+.stats dd.pop{animation:pop .7s}
+@keyframes pop{30%{transform:scale(1.18);color:var(--gold)}}
+.hp{margin-top:14px}
+.hp label{display:flex;justify-content:space-between;font-weight:800;font-size:14px;margin-bottom:6px}
+.bar{height:16px;border:3px solid var(--paper);border-radius:10px 3px 10px 3px;background:#0d0a1f;overflow:hidden}
+.bar i{display:block;height:100%;width:100%;background:linear-gradient(90deg,var(--mint),#b7ffe9);transition:width .5s, background .5s}
+.bar i.mid{background:linear-gradient(90deg,var(--gold),#fff0b8)}
+.bar i.low{background:linear-gradient(90deg,var(--alert),#ffc1b8)}
+
+/* журнал */
+.log{list-style:none;margin:0;padding:0;max-height:260px;overflow:auto;display:grid;gap:6px;font-size:14px}
+.log li{display:grid;grid-template-columns:auto 14px 1fr;gap:8px;align-items:baseline}
+.log time{color:#9d8fd6;font-variant-numeric:tabular-nums;font-size:12px}
+.log .k{width:10px;height:10px;border-radius:3px;background:#9d8fd6;transform:rotate(45deg);align-self:center}
+.log .catch .k{background:var(--gold)}.log .warn .k{background:var(--alert)}.log .recover .k{background:var(--sakura)}
+.log .error .k{background:#ff4d6d}
+.empty{color:#b7a9ec}
+
+/* телефон + настройки */
+.phone{display:grid;grid-template-columns:132px 1fr;gap:16px;align-items:center}
+.phone .qr{background:#fff;border-radius:10px;padding:4px;width:132px;height:132px}
+.phone .qr img{width:100%;height:100%;display:block}
+.url{word-break:break-all;font-size:13px;color:#cdbfff;margin:6px 0 10px}
+details summary{cursor:pointer;font-weight:800;margin:0}
+.set{display:grid;gap:12px;margin-top:14px}
+.set label{display:grid;gap:4px;font-weight:700;font-size:14px}
+.set input[type=text],.set select{font:600 15px var(--font);color:var(--paper);background:#0d0a1f;border:2px solid #ffffff55;border-radius:10px;padding:9px 12px;width:100%}
+.set .chk{display:flex;gap:10px;align-items:center}
+.set .chk input{width:20px;height:20px;accent-color:var(--sakura)}
+footer{margin:calc(var(--pad)*1.4) 0 0;color:#9d8fd6;font-size:13px;text-align:center}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(30px);opacity:0;z-index:5;
+  background:var(--paper);color:var(--ink);font-weight:800;padding:10px 18px;border-radius:14px 4px 14px 4px;
+  border:3px solid var(--sakura);transition:.25s;pointer-events:none;max-width:90vw}
+.toast.show{opacity:1;transform:translateX(-50%)}
+@media (max-width:520px){.phone{grid-template-columns:1fr;justify-items:start}.stats dd{font-size:26px}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}#petals{display:none}}
+body.phone-app .pc-only{display:none!important}
+</style>
+</head>
+<body>
+<canvas id="petals" aria-hidden="true"></canvas>
+<div class="wrap">
+  <header>
+    <div class="mark" aria-hidden="true">釣り姫</div>
+    <div class="title">Рыбачка<small>Slayers 2 · автоматическая рыбалка</small></div>
+    <div class="link"><span class="dot" id="dot"></span><span id="linktxt">связь…</span></div>
+  </header>
+
+  <div class="grid">
+    <div class="col">
+      <section class="panel stage" aria-label="Состояние">
+        <div class="hero">
+          <div class="kana" id="kana" aria-hidden="true">待機</div>
+          <svg class="girl" id="girl" data-mood="sleepy" viewBox="0 0 260 300" role="img" aria-label="Героиня-рыбачка">
+            <!-- удочка -->
+            <path d="M176 240 L236 56" stroke="#ffd36e" stroke-width="5" stroke-linecap="round" fill="none"/>
+            <path d="M236 56 Q252 110 222 148" stroke="#fff6fb" stroke-width="2" fill="none"/>
+            <g class="bobber"><circle cx="222" cy="160" r="11" fill="#fff6fb"/><path d="M211 160a11 11 0 0 1 22 0z" fill="#ff5b7f"/><circle cx="222" cy="160" r="11" fill="none" stroke="#14102b" stroke-width="2"/></g>
+            <!-- хвосты -->
+            <path d="M70 120 C24 150 20 222 52 262 C68 238 74 186 84 146Z" fill="#3b2a8c"/>
+            <path d="M190 120 C236 150 240 222 208 262 C192 238 186 186 176 146Z" fill="#3b2a8c"/>
+            <path d="M58 170 C50 200 54 226 62 244" stroke="#7a66e6" stroke-width="4" fill="none" stroke-linecap="round"/>
+            <path d="M202 170 C210 200 206 226 198 244" stroke="#7a66e6" stroke-width="4" fill="none" stroke-linecap="round"/>
+            <!-- тело -->
+            <path d="M84 218 Q130 202 176 218 L192 300 H68Z" fill="#fff6fb"/>
+            <path d="M92 214 L130 252 L168 214 L180 224 L130 276 L80 224Z" fill="#2a1d5e"/>
+            <path d="M130 254 L110 244 L110 268Z M130 254 L150 244 L150 268Z" fill="#ff7eb6"/><circle cx="130" cy="256" r="6" fill="#ff7eb6" stroke="#14102b" stroke-width="2"/>
+            <circle cx="177" cy="240" r="11" fill="#ffe3d3" stroke="#14102b" stroke-width="2"/>
+            <rect x="118" y="178" width="24" height="34" rx="8" fill="#ffe3d3"/>
+            <!-- уши -->
+            <path d="M76 84 L68 34 L116 66Z" fill="#3b2a8c" stroke="#14102b" stroke-width="3" stroke-linejoin="round"/>
+            <path d="M184 84 L192 34 L144 66Z" fill="#3b2a8c" stroke="#14102b" stroke-width="3" stroke-linejoin="round"/>
+            <path d="M79 70 L75 48 L98 63Z" fill="#ff7eb6"/><path d="M181 70 L185 48 L162 63Z" fill="#ff7eb6"/>
+            <!-- голова -->
+            <ellipse cx="130" cy="130" rx="66" ry="60" fill="#ffe3d3" stroke="#14102b" stroke-width="3"/>
+            <path d="M62 132 C60 70 98 50 130 50 C162 50 200 70 198 132 C190 110 180 100 166 94 C158 110 140 114 130 100 C120 114 102 110 94 94 C80 100 70 110 62 132Z" fill="#3b2a8c" stroke="#14102b" stroke-width="3" stroke-linejoin="round"/>
+            <path d="M100 66 Q118 56 138 60" stroke="#7a66e6" stroke-width="4" fill="none" stroke-linecap="round"/>
+            <circle cx="130" cy="60" r="7" fill="#ffd36e" stroke="#14102b" stroke-width="2"/>
+            <ellipse cx="88" cy="160" rx="13" ry="8" fill="#ff7eb6" opacity=".55"/><ellipse cx="172" cy="160" rx="13" ry="8" fill="#ff7eb6" opacity=".55"/>
+            <g class="eyes">
+              <g class="e-calm">
+                <g><ellipse cx="104" cy="138" rx="12" ry="15" fill="#fff"/><ellipse cx="104" cy="140" rx="9" ry="12" fill="#6ff2d6"/><ellipse cx="104" cy="141" rx="4.5" ry="7" fill="#14102b"/><circle cx="100" cy="135" r="3.4" fill="#fff"/></g>
+                <g><ellipse cx="156" cy="138" rx="12" ry="15" fill="#fff"/><ellipse cx="156" cy="140" rx="9" ry="12" fill="#6ff2d6"/><ellipse cx="156" cy="141" rx="4.5" ry="7" fill="#14102b"/><circle cx="152" cy="135" r="3.4" fill="#fff"/></g>
+                <path d="M90 130 Q104 120 118 128 M142 128 Q156 120 170 130" stroke="#14102b" stroke-width="4" fill="none" stroke-linecap="round"/>
+              </g>
+              <g class="e-sleepy"><path d="M92 140 Q104 150 116 140 M144 140 Q156 150 168 140" stroke="#14102b" stroke-width="4" fill="none" stroke-linecap="round"/></g>
+              <g class="e-happy"><path d="M92 144 Q104 126 116 144 M144 144 Q156 126 168 144" stroke="#14102b" stroke-width="5" fill="none" stroke-linecap="round"/></g>
+              <g class="e-focus">
+                <g><ellipse cx="104" cy="139" rx="12" ry="14" fill="#fff"/><ellipse cx="104" cy="140" rx="10" ry="12" fill="#6ff2d6"/><ellipse cx="104" cy="141" rx="3.6" ry="8" fill="#14102b"/><path d="M104 130 l2 4 4 1 -3 3 1 4 -4-2 -4 2 1-4 -3-3 4-1z" fill="#fff"/></g>
+                <g><ellipse cx="156" cy="139" rx="12" ry="14" fill="#fff"/><ellipse cx="156" cy="140" rx="10" ry="12" fill="#6ff2d6"/><ellipse cx="156" cy="141" rx="3.6" ry="8" fill="#14102b"/><path d="M156 130 l2 4 4 1 -3 3 1 4 -4-2 -4 2 1-4 -3-3 4-1z" fill="#fff"/></g>
+              </g>
+            </g>
+            <g class="extra">
+              <g class="x-focus"><path d="M88 122 L118 128 M172 122 L142 128" stroke="#14102b" stroke-width="5" stroke-linecap="round"/></g>
+              <g class="x-worry"><path d="M90 124 L118 116 M170 124 L142 116" stroke="#14102b" stroke-width="4" stroke-linecap="round"/><path d="M186 112 q8 14 0 20 q-8-6 0-20z" fill="#6ff2d6" stroke="#14102b" stroke-width="2"/></g>
+              <g class="x-spark"><path d="M214 100 l3 8 8 3-8 3-3 8-3-8-8-3 8-3z M44 96 l2 6 6 2-6 2-2 6-2-6-6-2 6-2z" fill="#ffd36e"/></g>
+            </g>
+            <g class="mouths">
+              <g class="m-smile"><path d="M120 166 Q130 175 140 166" stroke="#14102b" stroke-width="3.5" fill="none" stroke-linecap="round"/></g>
+              <g class="m-o"><ellipse cx="130" cy="170" rx="6" ry="8" fill="#c2416b" stroke="#14102b" stroke-width="3"/></g>
+              <g class="m-open"><path d="M116 162 Q130 188 144 162Z" fill="#c2416b" stroke="#14102b" stroke-width="3" stroke-linejoin="round"/><path d="M123 175 Q130 180 137 175" stroke="#ff9bbf" stroke-width="3" fill="none"/></g>
+              <g class="m-worry"><path d="M121 172 Q130 164 139 172" stroke="#14102b" stroke-width="3.5" fill="none" stroke-linecap="round"/></g>
+            </g>
+          </svg>
+        </div>
+        <div class="dialog">
+          <span class="name">ひめ</span>
+          <span class="badge" id="badge">待機</span>
+          <p class="say" id="say" aria-live="polite">Отдыхаю. Нажми «Начать», и пойдём рыбачить</p>
+        </div>
+      </section>
+
+      <section class="panel mint" aria-label="Управление">
+        <div class="go">
+          <button class="startbtn" id="go" type="button">Начать рыбалку<small class="pc-only">или клавиша <span id="hk">F1</span></small></button>
+        </div>
+        <div class="track" id="track" aria-label="Этапы">
+          <div class="step" data-s="cast"><b>投げ</b>Заброс</div>
+          <div class="step" data-s="wait"><b>待ち</b>Поклёвка</div>
+          <div class="step" data-s="fight"><b>戦い</b>Бой</div>
+          <div class="step" data-s="collect"><b>回収</b>Сбор</div>
+        </div>
+      </section>
+    </div>
+
+    <div class="col">
+      <section class="panel" id="setup" aria-label="Настройка телефона" hidden>
+        <details id="setupd" open>
+          <summary>Настройка телефона <span id="setupsum"></span></summary>
+          <ul class="todo" style="margin-top:12px">
+            <li data-k="access"><span class="mk">✓</span><span>Управление касаниями<small>Спец. возможности → Рыбачка → включить</small></span><button class="btn" data-do="access" type="button">Разрешить</button></li>
+            <li data-k="capture"><span class="mk">✓</span><span>Видеть экран<small>Нужно, чтобы замечать миниигру</small></span><button class="btn" data-do="capture" type="button">Разрешить</button></li>
+            <li data-k="cast"><span class="mk">✓</span><span>Точка заброса<small>Туда, куда тапаешь, чтобы забросить. Там же держится палец в бою</small></span><button class="btn" data-do="pick:cast" type="button">Указать</button></li>
+            <li data-k="collect"><span class="mk">✓</span><span>Кнопка «Собрать»<small>Появляется после боя, её надо держать</small></span><button class="btn" data-do="pick:collect" type="button">Указать</button></li>
+            <li data-k="rod"><span class="mk">✓</span><span>Слот удочки <i>(по желанию)</i><small>Помогает самой достать удочку, если сбилась</small></span><button class="btn" data-do="pick:rod" type="button">Указать</button></li>
+          </ul>
+          <div class="row">
+            <button class="btn" data-do="game" type="button">Открыть Roblox</button>
+            <button class="btn" data-do="battery" type="button">Не засыпать в фоне</button>
+          </div>
+          <p class="hint">Для «Указать» — нажми кнопку, зайди в игру и дойди до нужного места. Появится плашка: когда кнопка/точка на экране, жми «Выбрать», затем тапни по ней.</p>
+        </details>
+      </section>
+
+      <section class="panel gold" id="shotcard" aria-label="Экран игры">
+        <h2>Что видит макрос</h2>
+        <div class="shot" id="shot">
+          <img id="frame" alt="Окно Roblox" hidden>
+          <div class="ph" id="ph">Окна Roblox не видно.<br>Открой игру, дальше всё найдётся само.</div>
+        </div>
+        <div class="row" id="aimrow">
+          <button class="btn" id="aim" type="button">Указать точку заброса</button>
+          <span class="hint" id="aimhint">Розовый крестик показывает, куда макрос кликает при забросе.</span>
+        </div>
+      </section>
+
+      <section class="panel" aria-label="Итоги">
+        <dl class="stats">
+          <div><dt>Улов</dt><dd id="s-catch">0</dd></div>
+          <div><dt>В час</dt><dd id="s-rate">0</dd></div>
+          <div><dt>В пути</dt><dd id="s-time">0:00</dd></div>
+          <div><dt>Починилась сама</dt><dd id="s-rec">0</dd></div>
+        </dl>
+        <div class="hp"><label for="hpbar"><span>Устойчивость</span><span id="hptxt">100%</span></label>
+          <div class="bar" id="hpbar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><i id="hp"></i></div></div>
+      </section>
+
+      <section class="panel mint" aria-label="Журнал">
+        <h2>Журнал</h2>
+        <ul class="log" id="log"><li class="empty">Пока тихо. Здесь появятся уловы и самовосстановления.</li></ul>
+      </section>
+
+      <section class="panel" id="phonecard" aria-label="Телефон">
+        <h2>Управлять с телефона</h2>
+        <div class="phone">
+          <div class="qr"><img id="qr" alt="QR-код для телефона"></div>
+          <div>
+            <div>Наведи камеру на код. Телефон и компьютер должны быть в одной Wi‑Fi сети.</div>
+            <div class="url" id="url"></div>
+            <button class="btn" id="copy" type="button">Скопировать ссылку</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel gold" aria-label="Настройки">
+        <details>
+          <summary>Тонкая настройка (обычно не нужна)</summary>
+          <div class="set">
+            <label class="pc-only">Клавиша удочки<input type="text" id="rod" maxlength="12" autocomplete="off"></label>
+            <label class="pc-only">Как собирать рыбу
+              <select id="cmode"><option value="t">Удерживать T</option><option value="click">Удерживать левую кнопку мыши</option></select></label>
+            <label class="chk"><input type="checkbox" id="auto"> Начинать сразу при запуске программы</label>
+            <div class="row" style="margin-top:0"><button class="btn" id="resetarea" type="button">Забыть область шкалы</button><button class="btn" id="quit" type="button">Закрыть программу</button></div>
+            <p class="hint">Область шкалы, клавиши и тайминги подбираются сами. Эти пункты нужны, только если игра изменилась.</p>
+          </div>
+        </details>
+      </section>
+    </div>
+  </div>
+  <footer id="foot">Для надёжной работы держи Roblox в полноэкранном режиме (F11) и не закрывай его другими окнами.</footer>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(() => {
+  const K = new URLSearchParams(location.search).get('k') || '';
+  const $ = id => document.getElementById(id);
+  const withKey = p => p + (p.includes('?') ? '&' : '?') + 'k=' + encodeURIComponent(K);
+  async function api(path, body) {
+    const r = await fetch(withKey(path), body === undefined ? {cache:'no-store'} :
+      {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    if (!r.ok) throw new Error(r.status);
+    return r.json();
+  }
+  let toastT; const toast = m => { const t=$('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2400); };
+
+  const MOODS = {idle:'sleepy', prepare:'calm', cast:'calm', wait:'calm', fight:'focus', settle:'happy', collect:'happy', recover:'worried', paused:'worried'};
+  const STEP = {cast:'cast', wait:'wait', fight:'fight', settle:'collect', collect:'collect'};
+  const KANA = {idle:'待機', prepare:'準備', cast:'投げ', wait:'待ち', fight:'戦い', settle:'間', collect:'回収', recover:'復旧', paused:'休止'};
+  const fmt = s => { const h=Math.floor(s/3600), m=Math.floor(s%3600/60), x=s%60; return h ? `${h}:${String(m).padStart(2,'0')}:${String(x).padStart(2,'0')}` : `${m}:${String(x).padStart(2,'0')}`; };
+  const hms = t => new Date(t*1000).toLocaleTimeString('ru-RU',{hour12:false});
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // речь героини с печатью по буквам
+  let said = '', typeT;
+  function say(text) {
+    if (text === said) return; said = text; clearTimeout(typeT);
+    const el = $('say');
+    if (reduce) { el.textContent = text; return; }
+    let i = 0; el.textContent = '';
+    (function tick(){ i++; el.textContent = text.slice(0,i); if (i < text.length) typeT = setTimeout(tick, 16); })();
+  }
+
+  let state = null, seq = 0, lastCatches = -1, happyUntil = 0, aiming = false, failures = 0;
+  const logItems = [];
+
+  function render(s) {
+    state = s;
+    const run = s.running;
+    let mood = MOODS[s.phase] || 'calm';
+    if (Date.now() < happyUntil) mood = 'happy';
+    $('girl').dataset.mood = mood;
+    $('kana').textContent = KANA[s.phase] || '';
+    $('badge').textContent = KANA[s.phase] || '';
+    say(s.status);
+    const b = $('go');
+    b.classList.toggle('run', run);
+    b.firstChild.nodeValue = run ? 'Остановить' : 'Начать рыбалку';
+    $('hk').textContent = s.settings.hotkey;
+    document.querySelectorAll('.step').forEach(el => {
+      const on = run && STEP[s.phase] === el.dataset.s;
+      el.classList.toggle('on', on);
+    });
+    if (lastCatches >= 0 && s.catches > lastCatches) {
+      happyUntil = Date.now() + 2600;
+      const d = $('s-catch'); d.classList.remove('pop'); void d.offsetWidth; d.classList.add('pop');
+    }
+    lastCatches = s.catches;
+    $('s-catch').textContent = s.catches;
+    $('s-rate').textContent = s.per_hour ? s.per_hour : (s.last10 ? s.last10*6 : 0);
+    $('s-time').textContent = fmt(s.uptime);
+    $('s-rec').textContent = s.recoveries;
+    const hp = s.health;
+    $('hp').style.width = hp + '%';
+    $('hp').className = hp > 66 ? '' : hp > 33 ? 'mid' : 'low';
+    $('hptxt').textContent = hp + '%';
+    $('hpbar').setAttribute('aria-valuenow', hp);
+    // журнал
+    if (s.log && s.log.length) {
+      for (const e of s.log) if (e.n > seq) { logItems.push(e); seq = e.n; }
+      while (logItems.length > 60) logItems.shift();
+      const ul = $('log'); ul.innerHTML = '';
+      for (const e of logItems.slice().reverse()) {
+        const li = document.createElement('li'); li.className = e.k;
+        const t = document.createElement('time'); t.textContent = hms(e.t);
+        const k = document.createElement('span'); k.className = 'k';
+        const m = document.createElement('span'); m.textContent = e.m;
+        li.append(t, k, m); ul.append(li);
+      }
+    }
+    if (document.activeElement !== $('rod')) $('rod').value = s.settings.rod_key;
+    if (document.activeElement !== $('cmode')) $('cmode').value = s.settings.collect_mode;
+    $('auto').checked = s.settings.autostart;
+    if (s.phone) {
+      document.body.classList.add('phone-app');
+      $('setup').hidden = false;
+      const need = ['access','capture','cast','collect'];
+      let done = 0;
+      document.querySelectorAll('#setup li').forEach(li => {
+        const ok = !!s.phone[li.dataset.k]; li.classList.toggle('ok', ok);
+        if (need.includes(li.dataset.k) && ok) done++;
+      });
+      $('setupsum').textContent = done === need.length ? '— всё готово ✓' : `— ${done}/${need.length}`;
+      if (!window.__setupTouched) $('setupd').open = done !== need.length;
+    }
+    if (s.phone_url) { $('url').textContent = s.phone_url; }
+    else { $('url').textContent = 'Сеть не найдена: подключись к Wi‑Fi.'; }
+  }
+
+  async function poll() {
+    try {
+      const s = await api('/api/state?since=' + seq);
+      failures = 0; $('dot').className = 'dot on'; $('linktxt').textContent = 'на связи';
+      render(s);
+    } catch (e) {
+      failures++; $('dot').className = 'dot bad'; $('linktxt').textContent = 'нет связи';
+      if (failures > 2) say('Потеряла связь с компьютером. Проверь, что программа запущена.');
+    }
+    setTimeout(poll, document.hidden ? 2500 : 800);
+  }
+
+  // превью
+  const img = $('frame');
+  function refreshFrame() {
+    if (document.hidden) return;
+    const probe = new Image();
+    probe.onload = () => { img.src = probe.src; img.hidden = false; $('ph').hidden = true; };
+    probe.onerror = () => { img.hidden = true; $('ph').hidden = false; };
+    probe.src = withKey('/api/frame.jpg') + '&t=' + Date.now();
+  }
+  setInterval(() => { if (aiming || (state && (state.running || state.window_ok))) refreshFrame(); }, 1100);
+  refreshFrame();
+
+  $('aim').onclick = () => {
+    aiming = !aiming; $('shot').classList.toggle('aim', aiming);
+    $('aim').classList.toggle('hot', aiming);
+    $('aim').textContent = aiming ? 'Отмена' : 'Указать точку заброса';
+    $('aimhint').textContent = aiming ? 'Коснись картинки там, куда нужно кликать при забросе.' : 'Розовый крестик показывает, куда макрос кликает при забросе.';
+  };
+  $('shot').addEventListener('click', async ev => {
+    if (!aiming || img.hidden) return;
+    const r = img.getBoundingClientRect();
+    // картинка вписана с сохранением пропорций: считаем реальную область
+    const ar = img.naturalWidth / img.naturalHeight;
+    let w = r.width, h = r.height, ox = 0, oy = 0;
+    if (w / h > ar) { const nw = h * ar; ox = (w - nw) / 2; w = nw; } else { const nh = w / ar; oy = (h - nh) / 2; h = nh; }
+    const x = (ev.clientX - r.left - ox) / w, y = (ev.clientY - r.top - oy) / h;
+    if (x < 0 || x > 1 || y < 0 || y > 1) return;
+    try { await api('/api/cast', {x, y}); toast('Точка заброса сохранена'); $('aim').click(); refreshFrame(); }
+    catch (e) { toast('Не получилось сохранить точку'); }
+  });
+
+  $('go').onclick = async () => {
+    try {
+      const r = await api('/api/toggle', {});
+      if (r && r.ok === false && r.error) { toast(r.error); if (state && state.phone) { $('setupd').open = true; window.__setupTouched = true; } }
+    } catch (e) { toast('Нет связи с программой'); }
+  };
+  const save = async patch => { try { await api('/api/settings', patch); toast('Сохранено'); } catch (e) { toast('Не удалось сохранить'); } };
+  $('rod').onchange = () => save({rod_key: $('rod').value});
+  $('cmode').onchange = () => save({collect_mode: $('cmode').value});
+  $('auto').onchange = () => save({autostart: $('auto').checked});
+  $('resetarea').onclick = async () => { try { await api('/api/reset_area', {}); toast('Область сброшена'); } catch (e) { toast('Не удалось'); } };
+  $('quit').onclick = async () => {
+    try { const r = await api('/api/exit', {}); toast(r.ok ? 'Закрываюсь. До встречи!' : 'Закрыть можно только на самом компьютере'); }
+    catch (e) { toast('Нет связи с программой'); }
+  };
+  $('copy').onclick = async () => {
+    const u = $('url').textContent;
+    try { await navigator.clipboard.writeText(u); toast('Ссылка скопирована'); }
+    catch (e) { const r=document.createRange(); r.selectNodeContents($('url')); const s=getSelection(); s.removeAllRanges(); s.addRange(r); toast('Выделила ссылку, скопируй вручную'); }
+  };
+  document.querySelectorAll('#setup [data-do]').forEach(b => b.onclick = () => {
+    window.__setupTouched = true;
+    const A = window.Android; const [what, arg] = b.dataset.do.split(':');
+    if (!A) { toast('Это работает только в приложении на телефоне'); return; }
+    try {
+      if (what === 'access') A.askAccess();
+      else if (what === 'capture') A.askCapture();
+      else if (what === 'pick') A.pick(arg);
+      else if (what === 'game') A.launchGame();
+      else if (what === 'battery') A.battery();
+    } catch (e) { toast('Не получилось: ' + e); }
+  });
+  $('setupd').addEventListener('toggle', () => { window.__setupTouched = true; });
+  $('qr').src = withKey('/api/qr.svg');
+  $('qr').onerror = () => { $('qr').removeAttribute('src'); };
+
+  // лепестки сакуры — единственный фоновый эффект
+  const cv = $('petals'), cx = cv.getContext('2d');
+  if (!reduce) {
+    let W, H, P = [];
+    const fit = () => { W = cv.width = innerWidth; H = cv.height = innerHeight; };
+    addEventListener('resize', fit); fit();
+    const mk = (top) => ({x:Math.random()*W, y: top ? -20 : Math.random()*H, s:6+Math.random()*9, v:20+Math.random()*34,
+      sw:Math.random()*Math.PI*2, a:Math.random()*Math.PI*2, r:(Math.random()-.5)*1.4, o:.35+Math.random()*.45});
+    for (let i = 0; i < 26; i++) P.push(mk(false));
+    let last = performance.now();
+    (function frame(t) {
+      const dt = Math.min(.05, (t - last) / 1000); last = t;
+      if (!document.hidden) {
+        cx.clearRect(0,0,W,H);
+        for (const p of P) {
+          p.y += p.v*dt; p.sw += dt*1.3; p.x += Math.sin(p.sw)*22*dt + 8*dt; p.a += p.r*dt;
+          if (p.y > H+20 || p.x > W+20) Object.assign(p, mk(true));
+          cx.save(); cx.translate(p.x,p.y); cx.rotate(p.a); cx.globalAlpha = p.o;
+          cx.fillStyle = '#ff9fc9'; cx.beginPath();
+          cx.moveTo(0,-p.s); cx.bezierCurveTo(p.s*.9,-p.s*.6, p.s*.7,p.s*.7, 0,p.s*.5);
+          cx.bezierCurveTo(-p.s*.7,p.s*.7, -p.s*.9,-p.s*.6, 0,-p.s); cx.fill(); cx.restore();
+        }
+      }
+      requestAnimationFrame(frame);
+    })(last);
+  }
+
+  if (!['127.0.0.1','localhost','[::1]'].includes(location.hostname) || window.Android) $('phonecard').hidden = true;
+  if (window.Android) {
+    document.body.classList.add('phone-app');
+    $('aimrow').hidden = true; $('quit').textContent = 'Закрыть приложение';
+    $('quit').onclick = () => { try { window.Android.quit(); } catch (e) {} };
+    $('foot').textContent = 'Держи Roblox открытым в горизонтальном режиме. Рыбачка сама вернёт игру на экран, если что-то её закроет.';
+  }
+  poll();
+})();
+</script>
+</body>
+</html>
