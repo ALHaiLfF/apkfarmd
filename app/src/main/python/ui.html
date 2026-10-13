@@ -271,6 +271,7 @@ body.phone-app .pc-only{display:none!important}
           <div class="row">
             <button class="btn" data-do="game" type="button">Открыть Roblox</button>
             <button class="btn" data-do="battery" type="button">Не засыпать в фоне</button>
+            <button class="btn" data-do="snap" type="button">Снимок экрана для разбора</button>
           </div>
           <p class="hint">Для «Указать» — нажми кнопку, зайди в игру и дойди до нужного места. Появится плашка: когда кнопка/точка на экране, жми «Выбрать», затем тапни по ней.</p>
         </details>
@@ -283,6 +284,7 @@ body.phone-app .pc-only{display:none!important}
           <div class="ph" id="ph">Окна Roblox не видно.<br>Открой игру, дальше всё найдётся само.</div>
         </div>
         <p class="hint" id="detect" hidden></p>
+        <p class="hint" id="diag" hidden style="font-size:11px;word-break:break-word"></p>
         <div class="row" id="aimrow">
           <button class="btn" id="aim" type="button">Указать точку заброса</button>
           <span class="hint" id="aimhint">Розовый крестик показывает, куда макрос кликает при забросе.</span>
@@ -418,6 +420,7 @@ body.phone-app .pc-only{display:none!important}
     $('auto').checked = s.settings.autostart;
     if (s.phone) {
       const d = $('detect'); d.hidden = false;
+      $('diag').hidden = false; $('diag').textContent = s.diag || '';
       d.textContent = 'Детектор: ' + (s.detect || 'ещё ничего') + (s.dfps ? ' · ' + s.dfps + ' кадр/с' : '');
       document.body.classList.add('phone-app');
       $('setup').hidden = false;
@@ -507,6 +510,7 @@ body.phone-app .pc-only{display:none!important}
       else if (what === 'pick') A.pick(arg);
       else if (what === 'game') A.launchGame();
       else if (what === 'battery') A.battery();
+      else if (what === 'snap') A.snap();
     } catch (e) { toast('Не получилось: ' + e); }
   });
   $('setupd').addEventListener('toggle', () => { window.__setupTouched = true; });

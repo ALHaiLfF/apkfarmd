@@ -36,6 +36,11 @@ object Bridge {
         o.put("pkg", foregroundPkg())
         val s = screenSize()
         o.put("w", s[0]); o.put("h", s[1])
+        val a = access
+        o.put("g", if (a == null) "-" else "${a.gSent.get()}/${a.gDone.get()}/${a.gCancel.get()}/${a.gFail.get()}")
+        val gr = grabber
+        o.put("frames", gr?.frames ?: 0L)
+        o.put("age", if (gr != null && gr.stamp > 0) android.os.SystemClock.elapsedRealtime() - gr.stamp else -1L)
         return o.toString()
     }
 
@@ -77,6 +82,31 @@ object Bridge {
             true
         } catch (t: Throwable) {
             Log.w(TAG, "launchGame: $t")
+            false
+        }
+    }
+
+    /** Сохраняет текущий кадр захвата в Pictures/Rybachka (галерея). */
+    @JvmStatic fun saveFrame(tag: String): Boolean {
+        return try {
+            val ctx = appCtx ?: return false
+            val bmp = grabber?.snapshot() ?: return false
+            val name = "rybachka_${tag}_${System.currentTimeMillis() / 1000}.png"
+            if (android.os.Build.VERSION.SDK_INT >= 29) {
+                val cv = android.content.ContentValues().apply {
+                    put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, name)
+                    put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/png")
+                    put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, "Pictures/Rybachka")
+                }
+                val uri = ctx.contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cv) ?: return false
+                ctx.contentResolver.openOutputStream(uri)?.use { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+            } else {
+                val dir = ctx.getExternalFilesDir("frames") ?: return false
+                java.io.File(dir, name).outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+            }
+            true
+        } catch (t: Throwable) {
+            Log.w(TAG, "saveFrame: $t")
             false
         }
     }

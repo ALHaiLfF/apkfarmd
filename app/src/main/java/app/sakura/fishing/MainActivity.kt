@@ -155,6 +155,16 @@ class MainActivity : Activity() {
             a.startPick(name)
         }
 
+        @JavascriptInterface fun snap() {
+            ui.post { Toast.makeText(this@MainActivity, "Открываю игру, через 6 с сохраню кадр", Toast.LENGTH_LONG).show() }
+            Bridge.launchGame()
+            Thread {
+                try { Thread.sleep(6000) } catch (t: InterruptedException) { return@Thread }
+                val ok = Bridge.saveFrame("snap")
+                Bridge.access?.toast(if (ok) "Кадр сохранён: Галерея → Pictures/Rybachka" else "Кадр сохранить не вышло (захват экрана включён?)")
+            }.start()
+        }
+
         @JavascriptInterface fun launchGame() {
             if (!Bridge.launchGame()) {
                 ui.post { Toast.makeText(this@MainActivity, "Roblox не найден на телефоне", Toast.LENGTH_LONG).show() }

@@ -71,7 +71,7 @@ def _cut(r: PixelRect, bounds: PixelRect) -> PixelRect:
 
 
 _held = False
-NOTE = {"text": "", "fps": 0.0, "t": 0.0}
+NOTE = {"text": "", "fps": 0.0, "t": 0.0, "grab_ms": 0.0, "find_ms": 0.0, "holds": 0, "taps": 0, "errs": 0, "err": ""}
 
 
 def release_all() -> None:
@@ -179,10 +179,13 @@ class AndroidWorld:
             raise RuntimeError("нет кадра")
         x, y = max(0, min(s.w - 1, int(x))), max(0, min(s.h - 1, int(y)))
         w, h = max(1, min(s.w - x, int(w))), max(1, min(s.h - y, int(h)))
+        t0 = time.perf_counter()
         arr = bridge().grab(x, y, w, h)
         if arr is None:
             raise RuntimeError("нет кадра")
-        return _rgba_to_bgr(_u8(arr), w, h)
+        out = _rgba_to_bgr(_u8(arr), w, h)
+        NOTE["grab_ms"] = 0.8 * NOTE["grab_ms"] + 0.2 * (time.perf_counter() - t0) * 1000.0
+        return out
 
     def _area_px(self, c: PixelRect) -> PixelRect:
         sa = self.cfg.get("scan_area") or {}
@@ -252,6 +255,8 @@ class AndroidWorld:
         except Exception as exc:  # noqa: BLE001
             self._look_errs += 1
             now = time.monotonic()
+            NOTE["errs"] += 1
+            NOTE["err"] = f"{type(exc).__name__}: {exc}"[:120]
             if now - self._err_logged > 10:
                 self._err_logged = now
                 self.hub.event("warn", f"Захват экрана: {type(exc).__name__}: {exc}")
@@ -349,6 +354,7 @@ class AndroidWorld:
         if pt is None:
             return
         hold = max(0.05, self.cfg.adv("mouse_click_hold_sec"))
+        NOTE["taps"] += 1
         bridge().tap(pt[0], pt[1], int(hold * 1000))
         self._sleep_abortable(self.cfg.adv("cast_settle_sec"))
 
@@ -417,6 +423,7 @@ class AndroidWorld:
         if pt is None:
             return
         _held = down
+        NOTE["holds"] += 1
         bridge().hold(pt[0], pt[1], down)
 
     def release_all(self) -> None:

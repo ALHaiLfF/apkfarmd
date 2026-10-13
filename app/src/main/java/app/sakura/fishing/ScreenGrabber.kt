@@ -25,6 +25,7 @@ class ScreenGrabber(private val ctx: Context, private val projection: MediaProje
     @Volatile var w = 0
     @Volatile var h = 0
     @Volatile var stamp = 0L
+    @Volatile var frames = 0L
     @Volatile var alive = true
 
     private val watch = object : Runnable {
@@ -55,6 +56,7 @@ class ScreenGrabber(private val ctx: Context, private val projection: MediaProje
                     img?.close()
                     img = n
                     stamp = SystemClock.elapsedRealtime()
+                    frames++
                 }
             }
         }, handler)
@@ -101,6 +103,23 @@ class ScreenGrabber(private val ctx: Context, private val projection: MediaProje
                 }
             }
             return out
+        }
+    }
+
+    /** Весь кадр как Bitmap (для сохранения в галерею). */
+    fun snapshot(): android.graphics.Bitmap? {
+        synchronized(lock) {
+            val im = img ?: return null
+            val plane = im.planes[0]
+            val rs = plane.rowStride
+            val ps = plane.pixelStride
+            val bmp = android.graphics.Bitmap.createBitmap(
+                rs / ps, im.height, android.graphics.Bitmap.Config.ARGB_8888
+            )
+            val b = plane.buffer.duplicate()
+            b.position(0)
+            bmp.copyPixelsFromBuffer(b)
+            return if (rs / ps != im.width) android.graphics.Bitmap.createBitmap(bmp, 0, 0, im.width, im.height) else bmp
         }
     }
 

@@ -22,6 +22,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.TimeUnit
 
 /**
@@ -39,6 +40,10 @@ class MacroAccess : AccessibilityService() {
     private var shade: View? = null
 
     @Volatile private var lastPkg = ""
+    val gSent = AtomicInteger()
+    val gDone = AtomicInteger()
+    val gCancel = AtomicInteger()
+    val gFail = AtomicInteger()
     private var polling = true
 
     // ---------- состояние удержания пальца
@@ -105,11 +110,12 @@ class MacroAccess : AccessibilityService() {
         val latch = CountDownLatch(1)
         var ok = false
         val g = GestureDescription.Builder().addStroke(StrokeDescription(pathAt(x, y), 0, dur)).build()
+        gSent.incrementAndGet()
         val started = dispatchGesture(g, object : GestureResultCallback() {
-            override fun onCompleted(d: GestureDescription?) { ok = true; latch.countDown() }
-            override fun onCancelled(d: GestureDescription?) { latch.countDown() }
+            override fun onCompleted(d: GestureDescription?) { ok = true; gDone.incrementAndGet(); latch.countDown() }
+            override fun onCancelled(d: GestureDescription?) { gCancel.incrementAndGet(); latch.countDown() }
         }, gHandler)
-        if (!started) return false
+        if (!started) { gFail.incrementAndGet(); return false }
         latch.await(dur + 1500, TimeUnit.MILLISECONDS)
         return ok
     }
@@ -148,12 +154,15 @@ class MacroAccess : AccessibilityService() {
         }
         cur = if (want) stroke else null
         busy = true
+        gSent.incrementAndGet()
         val ok = try {
             dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), object : GestureResultCallback() {
                 override fun onCompleted(d: GestureDescription?) {
+                    gDone.incrementAndGet()
                     synchronized(hl) { busy = false; if (wantHold || cur != null) pump() }
                 }
                 override fun onCancelled(d: GestureDescription?) {
+                    gCancel.incrementAndGet()
                     synchronized(hl) { busy = false; cur = null; if (wantHold) pump() }
                 }
             }, gHandler)
@@ -162,6 +171,7 @@ class MacroAccess : AccessibilityService() {
             false
         }
         if (!ok) {
+            gFail.incrementAndGet()
             busy = false
             cur = null
         }

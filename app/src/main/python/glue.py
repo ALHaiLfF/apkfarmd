@@ -56,7 +56,14 @@ def boot(files_dir: str) -> int:
         return {"phone": {"access": bool(st.get("access")), "capture": bool(st.get("capture")),
                           "pkg": st.get("pkg", ""), **pts()},
                 "detect": aw.NOTE["text"], "dfps": round(aw.NOTE["fps"], 1),
+                "diag": diag(st),
                 "scan_area": cfg.get("scan_area")}
+
+    def diag(st: dict) -> str:
+        n = aw.NOTE
+        return (f"экран {st.get('w')}×{st.get('h')} · кадров {st.get('frames')} (свежесть {st.get('age')} мс) · "
+                f"грэб {n['grab_ms']:.0f} мс · касаний {n['taps']}, удержаний {n['holds']} · "
+                f"жесты отпр/готово/отмен/сбой {st.get('g')} · ошибок захвата {n['errs']} {n['err']}")
 
     def check() -> str | None:
         st = aw.status()
@@ -80,6 +87,19 @@ def boot(files_dir: str) -> int:
     port = panel.start()
     hub.event("info", f"Панель: порт {port}")
     _S.update(port=port, cfg=cfg, hub=hub, sup=sup, panel=panel, check=check)
+    def snapper() -> None:
+        last, saved = 0.0, 0
+        while True:
+            time.sleep(2.0)
+            try:
+                if sup.running and hub.fail_streak >= 2 and time.time() - last > 90 and saved < 6:
+                    last = time.time()
+                    if aw.bridge().saveFrame("fail"):
+                        saved += 1
+                        hub.event("info", "Сохранила кадр экрана в галерею (Pictures/Rybachka) для разбора")
+            except Exception:  # noqa: BLE001
+                pass
+    threading.Thread(target=snapper, name="snapper", daemon=True).start()
     if cfg.get("autostart") and not check():
         sup.start()
     return port
