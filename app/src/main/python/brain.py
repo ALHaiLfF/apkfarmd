@@ -491,6 +491,11 @@ class Brain:
             self.phase("settle")
             self.sleep(self.v("after_minigame_sec"))
             self.collect()
+            if self.cfg.get("reequip", False) and str(self.cfg.get("rod_key") or "").strip():
+                # убрать и снова взять удочку: сбрасывает «неудачу»/упавшую рыбу и гарантирует, что следующий бросок пройдёт
+                self.hub.event("info", "Убираю и беру удочку заново")
+                self.press_rod()
+                self.press_rod()
         elif self.found_leftover:
             self.found_leftover = False
             self.hub.event("info", "Нашла несобранную рыбу — собираю и бросаю заново")

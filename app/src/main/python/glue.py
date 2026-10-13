@@ -40,6 +40,8 @@ def boot(files_dir: str) -> int:
     if cfg.get("platform") != "android":
         cfg.update({"platform": "android", "cast": None, "collect": None, "rod": None,
                     "collect_mode": "click", "rod_key": "slot"})
+    if not cfg.get("migr2"):
+        cfg.update({"reequip": True, "migr2": True})
     hub = Hub()
     sup = Supervisor(cfg, hub, aw.AndroidWorld, aw.release_all)
 
