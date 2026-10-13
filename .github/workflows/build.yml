@@ -20,6 +20,14 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
+      - name: Probe chaquopy index
+        continue-on-error: true
+        run: |
+          for pkg in opencv-python opencv-python-headless numpy; do
+            echo "== $pkg"; curl -sS -m 30 "https://chaquo.com/pypi-13.1/$pkg/" | grep -o 'href="[^"]*"' | sed 's/href=//' | grep -E "cp311|android" | grep -E "arm64" | sed 's#.*/##' | head -20
+          done > probe.txt 2>&1
+          msg=$(sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g' probe.txt)
+          echo "::notice title=probe::$msg"
       - name: Build debug APK
         run: set -o pipefail; gradle --no-daemon --stacktrace assembleDebug 2>&1 | tee build.log
       - name: Report errors
