@@ -44,10 +44,8 @@ class MacroAccess : AccessibilityService() {
     // ---------- состояние удержания пальца
     private val hl = Any()
     private var wantHold = false
-    private var hx = 0f      // где палец сейчас
+    private var hx = 0f
     private var hy = 0f
-    private var tx = 0f      // куда его нужно сдвинуть
-    private var ty = 0f
     private var cur: StrokeDescription? = null
     private var busy = false
 
@@ -121,7 +119,6 @@ class MacroAccess : AccessibilityService() {
         synchronized(hl) {
             if (down) {
                 if (cur == null) { hx = x; hy = y }
-                tx = x; ty = y
                 wantHold = true
                 if (!busy) pump()
             } else {
@@ -145,15 +142,9 @@ class MacroAccess : AccessibilityService() {
         val prev = cur
         if (prev == null) {
             if (!want) return
-            hx = tx; hy = ty
             stroke = StrokeDescription(pathAt(hx, hy), 0, HOLD_CHUNK, true)
         } else {
-            val path = Path().apply {
-                moveTo(hx, hy)
-                if (want && (tx != hx || ty != hy)) lineTo(tx, ty)
-            }
-            if (want) { hx = tx; hy = ty }
-            stroke = prev.continueStroke(path, 0, if (want) HOLD_CHUNK else 1L, want)
+            stroke = prev.continueStroke(pathAt(hx, hy), 0, if (want) HOLD_CHUNK else 1L, want)
         }
         cur = if (want) stroke else null
         busy = true

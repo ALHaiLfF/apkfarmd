@@ -18,6 +18,7 @@ import numpy as np
 
 from brain import Look
 from config import Config
+import diamond
 from detect import Detector
 
 cv2.setNumThreads(2)
@@ -351,6 +352,43 @@ class AndroidWorld:
             self._sleep_abortable(secs)
         finally:
             bridge().hold(pt[0], pt[1], False)
+
+    def find_collect(self, bans=()):
+        """Белый ромб сбора на экране -> (x, y) в пикселях кадра или None."""
+        try:
+            sz = bridge().screenSize()
+            W, H = int(sz[0]), int(sz[1])
+            if W <= 0 or H <= 0:
+                return None
+            ow = 640
+            oh = max(1, int(round(H * ow / W)))
+            arr = bridge().scaled(ow, oh)
+            if arr is None:
+                return None
+            cands = diamond.find_diamonds(_rgba_to_bgr(_u8(arr), ow, oh), 4)
+        except Exception:  # noqa: BLE001
+            return None
+        k = W / float(ow)
+        pts = [(cx * k, cy * (H / float(oh))) for cx, cy, _w, _h in cands]
+        pts = [p for p in pts if not any(abs(p[0] - bx) < 50 and abs(p[1] - by) < 50 for bx, by in bans)]
+        if not pts:
+            return None
+        ref = self._pt("collect", {"x": 0.5, "y": 0.4})
+        if ref is not None:
+            pts.sort(key=lambda p: (p[0] - ref[0]) ** 2 + (p[1] - ref[1]) ** 2)
+        return pts[0]
+
+    def hold_pixel(self, x: float, y: float, down: bool) -> None:
+        global _held
+        _held = False
+        try:
+            d = bridge().displaySize()
+            s = bridge().screenSize()
+            fx = d[0] / float(s[0]) if s[0] else 1.0
+            fy = d[1] / float(s[1]) if s[1] else 1.0
+        except Exception:  # noqa: BLE001
+            fx = fy = 1.0
+        bridge().hold(int(x * fx), int(y * fy), bool(down))
 
     def set_hold(self, down: bool) -> None:
         global _held

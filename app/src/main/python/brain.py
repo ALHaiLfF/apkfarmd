@@ -86,6 +86,9 @@ class Brain:
         self.still_since: float | None = None
         self.bans: list[tuple[float, float]] = []
         self.bad_looks = 0
+        self.dbans: list = []
+        self.found_leftover = False
+        self.last_left_check = 0.0
 
     # ------------------------------------------------------------------ каркас
     def v(self, key: str) -> float:
@@ -191,11 +194,81 @@ class Brain:
         self.phase("collect")
         self.ensure_window()
         hold = self.v("collect_hold_sec")
-        if self.cfg.get("collect_mode") == "click":
+        fc = getattr(self.w, "find_collect", None)
+        if self.cfg.get("collect_mode") == "click" and fc is not None and self.cfg.get("visual_collect", True):
+            self.collect_visual(fc, hold)
+        elif self.cfg.get("collect_mode") == "click":
             self.w.hold_collect_click(hold)
         else:
             self.w.tap_key("t", hold)
         self.sleep(self.v("after_collect_sec"))
+
+    # ---- сбор по глазам: видим ромб — держим, пока не исчезнет; не исчез/сместился — берём заново
+    def _diamond(self, fc, wait: float):
+        """Ждём появления ромба до wait секунд (подтверждение — 2 кадра подряд рядом)."""
+        end = self.w.now() + wait
+        prev = None
+        while True:
+            self.guard()
+            p = fc(self.dbans)
+            if p is not None:
+                if prev is not None and abs(p[0] - prev[0]) < 60 and abs(p[1] - prev[1]) < 60:
+                    return p
+                prev = p
+            else:
+                prev = None
+            if self.w.now() >= end:
+                return None
+            self.sleep(0.08)
+
+    def collect_visual(self, fc, hold: float) -> None:
+        seen = False
+        last = None
+        for attempt in range(5):
+            p = self._diamond(fc, 4.0 if not seen else 1.2)
+            if p is None:
+                if not seen:
+                    self.hub.event("info", "Ромб сбора не вижу — жму в сохранённую точку")
+                    self.w.hold_collect_click(hold)
+                return   # видели и пропал — значит собрано
+            seen, last = True, p
+            t0 = self.w.now()
+            gone = far = None
+            self.w.hold_pixel(p[0], p[1], True)
+            try:
+                while self.w.now() - t0 < hold + 1.0:
+                    self.guard()
+                    self.sleep(0.12)
+                    now = self.w.now()
+                    q = fc(self.dbans)
+                    if q is None:
+                        gone = gone or now
+                        if now - gone > 0.5 and now - t0 > 0.3:
+                            break
+                    else:
+                        gone = None
+                        if abs(q[0] - p[0]) > 90 or abs(q[1] - p[1]) > 90:
+                            far = far or now                 # игра отодвинула кнопку — палец уже мимо
+                            if now - far > 0.4:
+                                break
+                        else:
+                            far = None
+            finally:
+                self.w.hold_pixel(p[0], p[1], False)
+            self.sleep(0.25)
+            if attempt >= 1:
+                self.hub.event("info", f"Сбор не прошёл с первого раза, пробую снова ({attempt + 1})")
+        if last is not None:
+            self.dbans.append(last)
+            self.dbans = self.dbans[-6:]
+            self.hub.event("warn", "Ромб не исчезает после 5 попыток — считаю его ложным и игнорирую")
+
+    def leftover(self) -> bool:
+        """Есть ли на экране несобранный ромб (рыба осталась)."""
+        fc = getattr(self.w, "find_collect", None)
+        if fc is None or self.cfg.get("collect_mode") != "click" or not self.cfg.get("visual_collect", True):
+            return False
+        return self._diamond(fc, 0.3) is not None
 
     def bite_timeout(self) -> float:
         base = self.v("wait_minigame_start_sec")
@@ -225,6 +298,11 @@ class Brain:
             self.upkeep(waiting=True)
             if self.deep_flag:
                 return None
+            if t0 - self.last_left_check > 2.0 and hits == 0:
+                self.last_left_check = t0
+                if self.leftover():
+                    self.found_leftover = True
+                    return None
             look = self.w.look(None, self.force_wide or n % 3 == 2)
             n += 1
             if not look.ok:
@@ -400,6 +478,9 @@ class Brain:
             self.hub.event("warn", f"Долго не получается ({self.fail_streak}). Передохну 20 с и продолжу")
             self.phase("recover", "Что-то идёт не так, делаю паузу и пробую снова")
             self.sleep(20.0)
+        if (self.fail_streak > 0 or self.last_catch_at == self.last_deep) and self.leftover():
+            self.hub.event("info", "На экране несобранная рыба — собираю")
+            self.collect()
         steps = LADDER[self.fail_streak % len(LADDER)]
         if self.attempt(steps):
             self.fail_streak = 0
@@ -409,6 +490,10 @@ class Brain:
             self.hub.catch()
             self.phase("settle")
             self.sleep(self.v("after_minigame_sec"))
+            self.collect()
+        elif self.found_leftover:
+            self.found_leftover = False
+            self.hub.event("info", "Нашла несобранную рыбу — собираю и бросаю заново")
             self.collect()
         else:
             self.fail_streak += 1
