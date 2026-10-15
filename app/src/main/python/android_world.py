@@ -83,6 +83,32 @@ def release_all() -> None:
         pass
 
 
+def bench() -> str:
+    """Сколько мс уходит на один поиск шара на этом устройстве (на искусственном кадре)."""
+    try:
+        rng = np.random.default_rng(1)
+        fr = rng.integers(20, 110, (754, 240, 3), dtype=np.uint8)
+        fr[600:645, 100:140] = 245
+        fr[300:360, 90:150, 1] = 220
+        d = Detector()
+        d.find(fr, (0, 0), None)
+        t = time.perf_counter()
+        for _ in range(8):
+            d.find(fr, (0, 0), None)
+        find_ms = (time.perf_counter() - t) / 8 * 1000
+        t = time.perf_counter()
+        for _ in range(8):
+            cv2.cvtColor(fr, cv2.COLOR_BGR2GRAY)
+        cvt_ms = (time.perf_counter() - t) / 8 * 1000
+        t = time.perf_counter()
+        for _ in range(8):
+            (fr.astype(np.float32) * 1.01).sum()
+        np_ms = (time.perf_counter() - t) / 8 * 1000
+        return f"поиск шара {find_ms:.0f} мс/кадр (cvtColor {cvt_ms:.1f} мс, numpy {np_ms:.1f} мс), потоков cv2: {cv2.getNumThreads()}"
+    except Exception as exc:  # noqa: BLE001
+        return f"замер не вышел: {exc!r}"
+
+
 def status() -> dict:
     try:
         return json.loads(str(bridge().status()))
@@ -104,6 +130,14 @@ class AndroidWorld:
         self.scanner = Detector()
         self.wide_scanner = Detector()   # широкий поиск идёт на кадре вдвое меньше — своя копия, т.к. хранит размеры в пикселях
         self.abort = lambda: False
+        _orig_find = self.scanner.find
+
+        def _timed_find(*a, **k):
+            t0 = time.perf_counter()
+            r = _orig_find(*a, **k)
+            NOTE["find_ms"] = 0.8 * NOTE["find_ms"] + 0.2 * (time.perf_counter() - t0) * 1000.0
+            return r
+        self.scanner.find = _timed_find
         self._roi: PixelRect | None = None
         self._small = None
         self._look_errs = 0
@@ -249,7 +283,7 @@ class AndroidWorld:
                 and area.y - w <= g.ball_y <= area.y + area.h + w)
 
     def perf(self) -> str:
-        return f"захват {NOTE['grab_ms']:.0f} мс, весь взгляд {NOTE['look_ms']:.0f} мс, нажатие {NOTE['hold_ms']:.0f} мс"
+        return f"захват {NOTE['grab_ms']:.0f} мс, детектор {NOTE['find_ms']:.0f} мс, весь взгляд {NOTE['look_ms']:.0f} мс, нажатие {NOTE['hold_ms']:.0f} мс"
 
     def look(self, near, wide: bool) -> Look:
         t_look = time.perf_counter()

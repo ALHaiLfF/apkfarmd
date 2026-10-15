@@ -86,6 +86,7 @@ def boot(files_dir: str) -> int:
                   host="127.0.0.1", strict=True, extra_state=phone_state, start_check=check)
     port = panel.start()
     hub.event("info", f"Панель: порт {port}")
+    threading.Thread(target=lambda: hub.event("info", "Скорость устройства: " + aw.bench()), name="bench", daemon=True).start()
     _S.update(port=port, cfg=cfg, hub=hub, sup=sup, panel=panel, check=check)
     def snapper() -> None:
         last, saved = 0.0, 0

@@ -44,6 +44,7 @@ jobs:
           target: default
           profile: pixel_4
           ram-size: 3072M
+          cores: 3
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           script: bash tools/e2e.sh

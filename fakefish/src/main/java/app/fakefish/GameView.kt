@@ -73,6 +73,7 @@ class GameView(ctx: Context) : View(ctx), Choreographer.FrameCallback {
 
     private val inst = ++instances
     private var alive = true
+    private var frameNo = 0
 
     init {
         isFocusable = true
@@ -118,7 +119,8 @@ class GameView(ctx: Context) : View(ctx), Choreographer.FrameCallback {
         lastFrame = now
         tNow += dt
         step(dt)
-        invalidate()
+        frameNo++
+        if (frameNo % 2 == 0) invalidate()      // рисуем 30 к/с: на CI-эмуляторе каждый процент процессора на счету
         Choreographer.getInstance().postFrameCallback(this)
     }
 
