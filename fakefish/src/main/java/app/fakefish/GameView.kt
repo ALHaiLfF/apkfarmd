@@ -201,6 +201,7 @@ class GameView(ctx: Context) : View(ctx), Choreographer.FrameCallback {
             fx = (0.25f + rnd.nextFloat() * 0.3f) * W()
             fy = (0.35f + rnd.nextFloat() * 0.25f) * H()
             fishVisible = false
+            Log.i(TAG, "JUMP x=${fx.toInt()} y=${fy.toInt()}")
             hideUntil = tNow + 0.5 + rnd.nextDouble() * 0.5
             if (holdIn > 0.3) { breaks++; Log.i(TAG, "COLLECT_BREAK hold=${"%.1f".format(holdIn)}") }
             holdIn = 0.0
@@ -232,7 +233,7 @@ class GameView(ctx: Context) : View(ctx), Choreographer.FrameCallback {
     override fun onTouchEvent(e: MotionEvent): Boolean {
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
-                Log.i(TAG, "EV D ${System.currentTimeMillis()}")
+                Log.i(TAG, "EV D ${System.currentTimeMillis()} x=${e.x.toInt()} y=${e.y.toInt()}")
                 held = true
                 downAt = SystemClock.elapsedRealtime()
                 touchX = e.x; touchY = e.y

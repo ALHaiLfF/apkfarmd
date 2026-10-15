@@ -94,10 +94,16 @@ for l in fake.splitlines():
     t = tsec(l)
     if t is None: continue
     if "FISH x=" in l:
-        cur = [t, []]; fish_rows.append(cur)
+        m = re.search(r"x=(\d+) y=(\d+)", l)
+        cur = [t, [f"рыба({m.group(1)},{m.group(2)})" if m else "рыба"]]; fish_rows.append(cur)
     elif cur is not None:
         tag = None
-        if "EV D" in l: tag = "D"
+        if "EV D" in l:
+            m = re.search(r"x=(\d+) y=(\d+)", l)
+            tag = f"D({m.group(1)},{m.group(2)})" if m else "D"
+        elif "JUMP" in l:
+            m = re.search(r"x=(\d+) y=(\d+)", l)
+            tag = f"прыжок({m.group(1)},{m.group(2)})" if m else "прыжок"
         elif "EV U" in l: tag = "U"
         elif "COLLECT_BREAK" in l: tag = "срыв"
         elif "COLLECT_OK" in l: tag = "ОК"
