@@ -71,7 +71,7 @@ def _cut(r: PixelRect, bounds: PixelRect) -> PixelRect:
 
 
 _held = False
-NOTE = {"hold": "", "text": "", "fps": 0.0, "t": 0.0, "grab_ms": 0.0, "find_ms": 0.0, "holds": 0, "taps": 0, "errs": 0, "err": ""}
+NOTE = {"hold": "", "text": "", "fps": 0.0, "t": 0.0, "grab_ms": 0.0, "find_ms": 0.0, "look_ms": 0.0, "hold_ms": 0.0, "holds": 0, "taps": 0, "errs": 0, "err": ""}
 
 
 def release_all() -> None:
@@ -248,7 +248,11 @@ class AndroidWorld:
         return (area.x - w <= g.ball_x <= area.x + area.w + w
                 and area.y - w <= g.ball_y <= area.y + area.h + w)
 
+    def perf(self) -> str:
+        return f"захват {NOTE['grab_ms']:.0f} мс, весь взгляд {NOTE['look_ms']:.0f} мс, нажатие {NOTE['hold_ms']:.0f} мс"
+
     def look(self, near, wide: bool) -> Look:
+        t_look = time.perf_counter()
         try:
             c = self._screen()
             if c is None or not bridge().captureReady():
@@ -283,6 +287,7 @@ class AndroidWorld:
                 self._roi = None
             self._look_errs = 0
             now = time.perf_counter()
+            NOTE["look_ms"] = 0.8 * NOTE["look_ms"] + 0.2 * (now - t_look) * 1000.0
             dt = now - NOTE["t"]
             NOTE["t"] = now
             if 0 < dt < 2:
@@ -472,7 +477,9 @@ class AndroidWorld:
         if down != _held:
             NOTE["holds"] += 1
         _held = down
+        t0 = time.perf_counter()
         bridge().hold(pt[0], pt[1], down)
+        NOTE["hold_ms"] = 0.8 * NOTE["hold_ms"] + 0.2 * (time.perf_counter() - t0) * 1000.0
 
     def release_all(self) -> None:
         release_all()

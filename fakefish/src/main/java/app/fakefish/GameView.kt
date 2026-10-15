@@ -71,10 +71,20 @@ class GameView(ctx: Context) : View(ctx), Choreographer.FrameCallback {
     private var lastFrame = 0L
     private val p = Paint(Paint.ANTI_ALIAS_FLAG)
 
+    private val inst = ++instances
+    private var alive = true
+
     init {
         isFocusable = true
         Choreographer.getInstance().postFrameCallback(this)
-        Log.i(TAG, "START")
+        Log.i(TAG, "START inst=$inst")
+    }
+
+    override fun onDetachedFromWindow() {
+        alive = false
+        Choreographer.getInstance().removeFrameCallback(this)
+        Log.i(TAG, "DETACH inst=$inst")
+        super.onDetachedFromWindow()
     }
 
     // ---------- раскладка (доли экрана, как в настоящей игре на телефоне)
@@ -102,6 +112,7 @@ class GameView(ctx: Context) : View(ctx), Choreographer.FrameCallback {
     }
 
     override fun doFrame(ns: Long) {
+        if (!alive) return
         val now = SystemClock.elapsedRealtime()
         val dt = if (lastFrame == 0L) 0.016 else ((now - lastFrame) / 1000.0).coerceAtMost(0.1)
         lastFrame = now
@@ -122,7 +133,7 @@ class GameView(ctx: Context) : View(ctx), Choreographer.FrameCallback {
         }
         if (tNow - lastStat >= 10.0) {
             lastStat = tNow
-            Log.i(TAG, "STAT t=${tNow.toInt()} casts=$casts catches=$catches fails=$fails collects=$collects missed=$missed breaks=$breaks tapsFish=$tapsFish downs=$downs gameDowns=$gameDowns")
+            Log.i(TAG, "STAT inst=$inst t=${tNow.toInt()} casts=$casts catches=$catches fails=$fails collects=$collects missed=$missed breaks=$breaks tapsFish=$tapsFish downs=$downs gameDowns=$gameDowns")
         }
     }
 
@@ -345,5 +356,5 @@ class GameView(ctx: Context) : View(ctx), Choreographer.FrameCallback {
         }
     }
 
-    companion object { const val TAG = "FAKEFISH" }
+    companion object { const val TAG = "FAKEFISH"; var instances = 0 }
 }

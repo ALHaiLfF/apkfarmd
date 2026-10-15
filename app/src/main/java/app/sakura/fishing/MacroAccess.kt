@@ -101,6 +101,8 @@ class MacroAccess : AccessibilityService() {
         ui.post { removeChip(); removePick() }
         if (Bridge.access === this) Bridge.access = null
         gThread.quitSafely()
+        aThread.quitSafely()
+        kThread.quitSafely()
         super.onDestroy()
     }
 
@@ -189,6 +191,7 @@ class MacroAccess : AccessibilityService() {
     /** Короткий тап, блокирует вызывающий поток до конца жеста. */
     fun tap(x: Float, y: Float, ms: Long): Boolean {
         val dur = Math.max(1L, Math.min(1500L, ms))
+        wantDown = false
         return synchronized(tl) {
             tEnd()
             tSend(StrokeDescription(pathAt(x, y), 0L, dur), dur + 1500)
@@ -197,6 +200,7 @@ class MacroAccess : AccessibilityService() {
 
     /** Одно длинное касание ровно на ms (как «Hold» для сбора). Блокирует. */
     fun holdFor(x: Float, y: Float, ms: Long): Boolean {
+        wantDown = false
         return synchronized(tl) {
             tEnd()
             waitPending(400)
@@ -204,17 +208,42 @@ class MacroAccess : AccessibilityService() {
         }
     }
 
-    /** Нажать и держать (down=true) или отпустить (false). */
+    // «хочу» — что просит питон; применяет отдельный поток, так что питон не ждёт системы. Побеждает последнее пожелание.
+    @Volatile private var wantDown = false
+    @Volatile private var wantX = 0f
+    @Volatile private var wantY = 0f
+    private val applying = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val aThread = HandlerThread("sakura-apply").also { it.start() }
+    private val aHandler = Handler(aThread.looper)
+
+    private val applyRun = Runnable {
+        while (true) {
+            try {
+                while (true) {
+                    val d = wantDown; val x = wantX; val y = wantY
+                    synchronized(tl) {
+                        if (d) {
+                            if (tDown && !tBroken && x == lx && y == ly) tKeepAlive()
+                            tBegin(x, y)
+                        } else tEnd()
+                    }
+                    if (d == wantDown && x == wantX && y == wantY) break
+                }
+            } catch (t: Throwable) {
+                Log.w(Bridge.TAG, "apply: $t")
+            }
+            applying.set(false)
+            // могли прийти новые пожелания, пока мы выходили
+            val needMore = (wantDown != tDown) || (wantDown && (wantX != lx || wantY != ly))
+            if (!needMore || !applying.compareAndSet(false, true)) break
+        }
+    }
+
+    /** Нажать и держать (down=true) или отпустить (false). Не блокирует. */
     fun setHold(x: Float, y: Float, down: Boolean) {
         if (holdMethod == 1) { longHold(x, y, down); return }
-        synchronized(tl) {
-            if (down) {
-                if (tDown && !tBroken && x == lx && y == ly) tKeepAlive()
-                tBegin(x, y)
-            } else {
-                tEnd()
-            }
-        }
+        wantX = x; wantY = y; wantDown = down
+        if (applying.compareAndSet(false, true)) aHandler.post(applyRun)
     }
 
     private fun longHold(x: Float, y: Float, down: Boolean) {
@@ -258,6 +287,7 @@ class MacroAccess : AccessibilityService() {
     }
 
     fun releaseAll() {
+        wantDown = false
         if (longOn) longHold(hx, hy, false)
         synchronized(tl) { tEnd() }
         waitPending(400)

@@ -442,7 +442,9 @@ class Brain:
             self.w.set_hold(False)
             self.hub.track = None
         dur = self.w.now() - t_begin
-        self.hub.event("info", f"Миниигра: {dur:.1f} с, шар виден в {n_seen} из {n_loops} кадров, смен нажал/отпустил: {n_toggle}, итог: {result}")
+        perf = getattr(self.w, "perf", None)
+        self.hub.event("info", f"Миниигра: {dur:.1f} с, шар виден в {n_seen} из {n_loops} кадров ({n_loops / max(dur, 0.1):.1f} к/с), смен нажал/отпустил: {n_toggle}, итог: {result}"
+                       + (f" · {perf()}" if perf else ""))
         if result == "done" and dur < min_s + grace:
             return "noise"
         if result in ("done", "timeout") and src == "wide" and len(samples) > 20:
