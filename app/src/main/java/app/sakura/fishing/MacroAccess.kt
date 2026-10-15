@@ -209,6 +209,8 @@ class MacroAccess : AccessibilityService() {
     }
 
     @Volatile private var asyncUntil = 0L
+    @Volatile private var asyncX = 0f
+    @Volatile private var asyncY = 0f
 
     /** Одно длинное касание на ms, НЕ блокирует. Без «продолжений»: система не обрывает его на полпути. */
     fun holdAsync(x: Float, y: Float, ms: Long): Boolean {
@@ -218,18 +220,18 @@ class MacroAccess : AccessibilityService() {
             waitPending(400)
             val dur = Math.max(1L, Math.min(MAX_STROKE_MS, ms))
             asyncUntil = System.currentTimeMillis() + dur
+            asyncX = x; asyncY = y
             tSend(StrokeDescription(pathAt(x, y), 0L, dur), 0L)
         }
     }
 
-    /** Поднять палец, если длинное касание ещё идёт (новый жест отменяет прежний; тап — у левого края). */
+    /** Поднять палец, если длинное касание ещё идёт (новый жест отменяет прежний; тап — там же, где держали). */
     fun cancelHold() {
         if (System.currentTimeMillis() >= asyncUntil) return
         asyncUntil = 0L
         synchronized(tl) {
-            val sz = Bridge.realSize(this)
             val g = GestureDescription.Builder()
-                .addStroke(StrokeDescription(pathAt(sz[0] * 0.012f, sz[1] * 0.5f), 0, 8L)).build()
+                .addStroke(StrokeDescription(pathAt(asyncX, asyncY), 0, 8L)).build()
             gSent.incrementAndGet()
             val ok = try { dispatchGesture(g, null, gHandler) } catch (t: Throwable) { false }
             if (!ok) gFail.incrementAndGet()
