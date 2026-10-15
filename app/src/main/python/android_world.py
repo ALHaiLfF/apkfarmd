@@ -70,6 +70,7 @@ def _cut(r: PixelRect, bounds: PixelRect) -> PixelRect:
     return PixelRect(x0, y0, max(1, x1 - x0), max(1, y1 - y0))
 
 
+TRACE: list = []   # (epoch_ms, down) — вызовы set_hold, для автотеста
 _held = False
 NOTE = {"hold": "", "text": "", "fps": 0.0, "t": 0.0, "grab_ms": 0.0, "find_ms": 0.0, "look_ms": 0.0, "hold_ms": 0.0, "holds": 0, "taps": 0, "errs": 0, "err": ""}
 
@@ -510,6 +511,8 @@ class AndroidWorld:
             return
         if down != _held:
             NOTE["holds"] += 1
+            if len(TRACE) < 3000:
+                TRACE.append((int(time.time() * 1000), 1 if down else 0))
         _held = down
         t0 = time.perf_counter()
         bridge().hold(pt[0], pt[1], down)

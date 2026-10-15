@@ -168,6 +168,7 @@ class GameView(ctx: Context) : View(ctx), Choreographer.FrameCallback {
         if (inside) inZoneT += dt
         progress = (progress + (if (inside) 1.0 else -0.7) * dt).coerceAtLeast(0.0)
         if (held) gameHeldMs += dt * 1000
+        if (frameNo % 6 == 0) Log.i(TAG, "TR ${System.currentTimeMillis()} ${ballY.toInt()} ${zc.toInt()} ${if (held) 1 else 0}")
         if (progress >= 3.5) {
             catches++
             Log.i(TAG, "MG_END ok=1 t=${"%.1f".format(tGame)} inzone=${"%.1f".format(inZoneT)} downs=$gameDowns held=${gameHeldMs.toInt()}ms")
@@ -229,6 +230,7 @@ class GameView(ctx: Context) : View(ctx), Choreographer.FrameCallback {
     override fun onTouchEvent(e: MotionEvent): Boolean {
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
+                Log.i(TAG, "EV D ${System.currentTimeMillis()}")
                 held = true
                 downAt = SystemClock.elapsedRealtime()
                 touchX = e.x; touchY = e.y
@@ -240,6 +242,7 @@ class GameView(ctx: Context) : View(ctx), Choreographer.FrameCallback {
             }
             MotionEvent.ACTION_MOVE -> { touchX = e.x; touchY = e.y }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                Log.i(TAG, "EV U ${System.currentTimeMillis()}")
                 held = false
                 prevHeld = false
             }

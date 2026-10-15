@@ -19,7 +19,26 @@ if missed: verdict.append(f"рыба упущена {missed} раз")
 if taps > 6 * max(1, collects): verdict.append(f"слишком много тыков по рыбе ({taps})")
 ok = not verdict
 note("notice" if ok else "error", "e2e итог", ("ПРОШЁЛ: " if ok else "ПРОВАЛ: " + "; ".join(verdict) + "\n") + summary)
-ev = [l for l in fake.splitlines() if re.search(r"MG_START|MG_END|FISH|COLLECT|CAST|ROD|STAT|START|DETACH", l)]
+import bisect, statistics
+Hs = [(int(m.group(1)), int(m.group(2))) for m in re.finditer(r"^H (\d+) (\d)$", app, re.M)]
+Ev = [(int(m.group(2)), 1 if m.group(1) == "D" else 0) for m in re.finditer(r"EV ([DU]) (\d+)", fake)]
+lat = {1: [], 0: []}
+for dn in (1, 0):
+    hs = [t for t, d in Hs if d == dn]
+    for t, d in Ev:
+        if d != dn: continue
+        i = bisect.bisect_right(hs, t) - 1
+        if i >= 0 and t - hs[i] < 1500: lat[dn].append(t - hs[i])
+def q(a, p):
+    a = sorted(a); return a[min(len(a) - 1, int(len(a) * p))] if a else -1
+tr = [tuple(map(int, m.groups())) for m in re.finditer(r"TR (\d+) (-?\d+) (-?\d+) (\d)", fake)]
+err = [abs(b - z) for _, b, z, _ in tr]
+lat_s = (f"задержка нажатия (вызов макроса -> касание дошло до игры): вниз n={len(lat[1])} med={q(lat[1],.5)} p90={q(lat[1],.9)} мс; "
+         f"вверх n={len(lat[0])} med={q(lat[0],.5)} p90={q(lat[0],.9)} мс; вызовов макроса: {len(Hs)}, касаний в игре: {len(Ev)}; "
+         f"средняя ошибка |шар-зона|={statistics.mean(err) if err else -1:.0f}px по {len(tr)} точкам")
+note("notice", "e2e латентность", lat_s)
+app = "\n".join(l for l in app.splitlines() if not re.match(r"^H \d+ \d$", l))
+ev = [l for l in fake.splitlines() if re.search(r"MG_START|MG_END|FISH|COLLECT|CAST|ROD|STAT|START|DETACH", l) and "EV " not in l and " TR " not in l]
 note("notice", "e2e игра", "\n".join(ev[-140:]))
 note("notice", "e2e макрос", "\n".join(app.splitlines()[-160:]))
 sys.exit(0 if ok else 1)
