@@ -111,5 +111,7 @@ note("notice", "e2e сбор", "по каждой рыбе: когда нажа�
 app = "\n".join(l for l in app.splitlines() if not re.match(r"^[HD] \d+ ", l))
 ev = [l for l in fake.splitlines() if re.search(r"MG_START|MG_END|FISH|COLLECT|CAST|ROD|STAT|START|DETACH", l) and "EV " not in l and " TR " not in l]
 note("notice", "e2e игра", "\n".join(ev[-140:]))
-note("notice", "e2e макрос", "\n".join(app.splitlines()[-160:]))
+alines = app.splitlines()
+note("notice", "e2e макрос", "\n".join(l[:240] for l in alines if not l.startswith("DIAG"))[-26000:])
+note("notice", "e2e диагностика", "\n".join(l[:400] for l in alines if l.startswith("DIAG"))[-6000:])
 sys.exit(0 if ok else 1)
