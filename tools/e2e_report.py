@@ -37,7 +37,25 @@ lat_s = (f"задержка нажатия (вызов макроса -> кас�
          f"вверх n={len(lat[0])} med={q(lat[0],.5)} p90={q(lat[0],.9)} мс; вызовов макроса: {len(Hs)}, касаний в игре: {len(Ev)}; "
          f"средняя ошибка |шар-зона|={statistics.mean(err) if err else -1:.0f}px по {len(tr)} точкам")
 note("notice", "e2e латентность", lat_s)
-app = "\n".join(l for l in app.splitlines() if not re.match(r"^H \d+ \d$", l))
+Ds = [(int(a), int(b), int(c), int(d), e) for a, b, c, d, e in re.findall(r"^D (\d+) (-?\d+) (-?\d+) (-?\d+) (\w+)$", app, re.M)]
+trt = [t for t, *_ in tr]
+eb, ez, nz = [], [], 0
+for t, by, zt, zb, src in Ds:
+    i = bisect.bisect_left(trt, t)
+    cand = [j for j in (i - 1, i) if 0 <= j < len(tr)]
+    if not cand: continue
+    j = min(cand, key=lambda j: abs(trt[j] - t))
+    if abs(trt[j] - t) > 150: continue
+    eb.append(by - tr[j][1])
+    if zt >= 0:
+        nz += 1
+        ez.append((zt + zb) / 2 - tr[j][2])
+def stat(a):
+    if not a: return "нет данных"
+    a2 = sorted(abs(x) for x in a)
+    return f"med|e|={a2[len(a2)//2]:.0f} p90={a2[int(len(a2)*.9)]:.0f} bias={statistics.mean(a):.0f}"
+note("notice", "e2e детектор vs правда", f"кадров с шаром={len(Ds)}, с зоной={nz}; шар: {stat(eb)}; центр зоны: {stat(ez)}")
+app = "\n".join(l for l in app.splitlines() if not re.match(r"^[HD] \d+ ", l))
 ev = [l for l in fake.splitlines() if re.search(r"MG_START|MG_END|FISH|COLLECT|CAST|ROD|STAT|START|DETACH", l) and "EV " not in l and " TR " not in l]
 note("notice", "e2e игра", "\n".join(ev[-140:]))
 note("notice", "e2e макрос", "\n".join(app.splitlines()[-160:]))

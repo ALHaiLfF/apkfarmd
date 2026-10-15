@@ -70,6 +70,7 @@ def _cut(r: PixelRect, bounds: PixelRect) -> PixelRect:
     return PixelRect(x0, y0, max(1, x1 - x0), max(1, y1 - y0))
 
 
+DTRACE: list = []  # (epoch_ms, ball_y, zone_top, zone_bot, src) — что видит детектор, для автотеста
 TRACE: list = []   # (epoch_ms, down) — вызовы set_hold, для автотеста
 _held = False
 NOTE = {"hold": "", "text": "", "fps": 0.0, "t": 0.0, "grab_ms": 0.0, "find_ms": 0.0, "look_ms": 0.0, "hold_ms": 0.0, "holds": 0, "taps": 0, "errs": 0, "err": ""}
@@ -331,6 +332,9 @@ class AndroidWorld:
             NOTE["text"] = ("нашла: " + src if game is not None else "") + (
                 (" · зона есть" if game.has_zone else " · зоны нет") if game is not None else "") + \
                 ((self.scanner.last or "") if game is None or not game.has_zone else "")
+            if game is not None and len(DTRACE) < 6000:
+                DTRACE.append((int(time.time() * 1000), int(game.ball_y), game.zone_top if game.has_zone else -1,
+                               game.zone_bot if game.has_zone else -1, src))
             return Look(game, src if game is not None else "", True)
         except Exception as exc:  # noqa: BLE001
             self._look_errs += 1

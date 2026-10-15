@@ -116,6 +116,9 @@ def boot(files_dir: str) -> int:
                         if e["n"] > seen:
                             seen = e["n"]
                             lines.append(f"{time.strftime('%H:%M:%S', time.localtime(e['t']))} [{e['k']}] {e['m']}")
+                    while aw.DTRACE:
+                        t_ms, by, zt, zb, src = aw.DTRACE.pop(0)
+                        lines.append(f"D {t_ms} {by} {zt} {zb} {src}")
                     while aw.TRACE:
                         t_ms, dn = aw.TRACE.pop(0)
                         lines.append(f"H {t_ms} {dn}")
