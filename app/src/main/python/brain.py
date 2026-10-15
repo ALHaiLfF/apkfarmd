@@ -545,7 +545,10 @@ class Brain:
             self.force_wide = False
             self.last_catch_at = self.w.now()
             self.phase("settle")
-            self.sleep(self.v("after_minigame_sec"))
+            visual = (getattr(self.w, "find_collect", None) is not None and self.cfg.get("collect_mode") == "click"
+                      and self.cfg.get("visual_collect", True))
+            # с «глазами» ждать вслепую незачем: сбор сам дождётся кнопки (до 4 с) и возьмёт её, как только она появится
+            self.sleep(min(self.v("after_minigame_sec"), 0.6) if visual else self.v("after_minigame_sec"))
             if self.collect():
                 self.hub.catch()
             else:

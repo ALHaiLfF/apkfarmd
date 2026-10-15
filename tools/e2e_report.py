@@ -85,6 +85,29 @@ if tr:
         rows.append(f"{(t - t0g) / 1000:5.1f} err={b - z:4d} {'#' if h else '.'} {cm}")
     note("notice", "e2e трасса 14с", "err=шар-зона (минус: шар выше зоны); # — палец реально прижат в игре; v/^ — команды макроса\n" + "\n".join(rows))
 note("notice", "e2e детектор vs правда", f"кадров с шаром={len(Ds)}, с зоной={nz}; шар: {stat(eb)}; центр зоны: {stat(ez)}")
+
+def tsec(l):
+    m = re.match(r"\d+-\d+ (\d+):(\d+):(\d+)\.(\d+)", l)
+    return int(m.group(1)) * 3600 + int(m.group(2)) * 60 + int(m.group(3)) + int(m.group(4)) / 1000 if m else None
+fish_rows, cur = [], None
+for l in fake.splitlines():
+    t = tsec(l)
+    if t is None: continue
+    if "FISH x=" in l:
+        cur = [t, []]; fish_rows.append(cur)
+    elif cur is not None:
+        tag = None
+        if "EV D" in l: tag = "D"
+        elif "EV U" in l: tag = "U"
+        elif "COLLECT_BREAK" in l: tag = "срыв"
+        elif "COLLECT_OK" in l: tag = "ОК"
+        elif "FISH_MISSED" in l: tag = "упущена"
+        elif "ROD on" in l: tag = "удочка"
+        elif "CAST" in l: tag = "бросок"
+        if tag:
+            cur[1].append(f"+{t - cur[0]:.1f} {tag}")
+            if tag in ("ОК", "упущена", "бросок"): cur = None
+note("notice", "e2e сбор", "по каждой рыбе: когда нажали (D), отпустили (U), сорвалось, собрано\n" + "\n".join(" ".join(r[1]) for r in fish_rows[:12]))
 app = "\n".join(l for l in app.splitlines() if not re.match(r"^[HD] \d+ ", l))
 ev = [l for l in fake.splitlines() if re.search(r"MG_START|MG_END|FISH|COLLECT|CAST|ROD|STAT|START|DETACH", l) and "EV " not in l and " TR " not in l]
 note("notice", "e2e игра", "\n".join(ev[-140:]))
