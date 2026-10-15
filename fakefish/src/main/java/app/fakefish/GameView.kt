@@ -97,7 +97,8 @@ class GameView(ctx: Context) : View(ctx), Choreographer.FrameCallback {
     private fun barBot() = 0.69f * H()
     private fun ballH() = 0.042f * H()
     private fun ballW() = 0.017f * W()
-    private fun zoneH() = 0.055f * H()
+    var easy = false      // облегчённый режим для проверки цепочки «поймал -> собрал -> заново»: зона шире и медленнее
+    private fun zoneH() = (if (easy) 0.10f else 0.055f) * H()
     private fun castX() = 0.80f * W()
     private fun castY() = 0.33f * H()
     private fun castR() = 0.06f * H()
@@ -109,7 +110,8 @@ class GameView(ctx: Context) : View(ctx), Choreographer.FrameCallback {
     private fun zoneC(t: Double): Double {
         val mid = (barTop() + barBot()) / 2.0
         val span = (barBot() - barTop()).toDouble()
-        return mid + 0.27 * span * sin(0.8 * t) + 0.09 * span * sin(2.1 * t)
+        val k = if (easy) 0.6 else 1.0
+        return mid + 0.27 * span * sin(0.8 * k * t) + 0.09 * span * sin(2.1 * k * t)
     }
 
     override fun doFrame(ns: Long) {

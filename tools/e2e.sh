@@ -20,7 +20,7 @@ J
 adb shell "run-as $APP mkdir -p files"
 adb shell "run-as $APP sh -c 'cat > files/config.json'" < $OUT/config.json
 adb shell "run-as $APP sh -c 'touch files/e2e.flag; rm -f files/e2e.log'"
-adb shell am start -n $FAKE/.MainActivity
+adb shell am start -n $FAKE/.MainActivity ${E2E_EASY:+--ez easy true}
 sleep 4
 adb logcat -c
 adb shell settings put secure enabled_accessibility_services $APP/app.sakura.fishing.MacroAccess

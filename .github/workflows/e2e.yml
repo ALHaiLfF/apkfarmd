@@ -37,6 +37,8 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
       - name: Emulator + автотест
+        env:
+          E2E_EASY: '1'
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 30
