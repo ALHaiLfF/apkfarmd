@@ -41,6 +41,8 @@ class FakeBridge:
     def tap(self, x, y, ms): self.calls.append(("tap", x, y, ms)); return True
     def hold(self, x, y, down): self.calls.append(("hold", x, y, down))
     def releaseAll(self): self.calls.append(("release",))
+    def holdAsync(self, x, y, ms): self.calls.append(("holdAsync", x, y, ms)); return True
+    def cancelHold(self): self.calls.append(("cancelHold",))
     def holdMethod(self, m): self.calls.append(("method", m))
     def holdFor(self, x, y, ms): self.calls.append(("holdFor", x, y, ms)); return True
     def launchGame(self, needle="roblox"): self.calls.append(("launch",)); self.pkg = "com.roblox.client"; return True

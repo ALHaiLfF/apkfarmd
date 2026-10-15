@@ -208,6 +208,34 @@ class MacroAccess : AccessibilityService() {
         }
     }
 
+    @Volatile private var asyncUntil = 0L
+
+    /** Одно длинное касание на ms, НЕ блокирует. Без «продолжений»: система не обрывает его на полпути. */
+    fun holdAsync(x: Float, y: Float, ms: Long): Boolean {
+        wantDown = false
+        return synchronized(tl) {
+            tEnd()
+            waitPending(400)
+            val dur = Math.max(1L, Math.min(MAX_STROKE_MS, ms))
+            asyncUntil = System.currentTimeMillis() + dur
+            tSend(StrokeDescription(pathAt(x, y), 0L, dur), 0L)
+        }
+    }
+
+    /** Поднять палец, если длинное касание ещё идёт (новый жест отменяет прежний; тап — у левого края). */
+    fun cancelHold() {
+        if (System.currentTimeMillis() >= asyncUntil) return
+        asyncUntil = 0L
+        synchronized(tl) {
+            val sz = Bridge.realSize(this)
+            val g = GestureDescription.Builder()
+                .addStroke(StrokeDescription(pathAt(sz[0] * 0.012f, sz[1] * 0.5f), 0, 8L)).build()
+            gSent.incrementAndGet()
+            val ok = try { dispatchGesture(g, null, gHandler) } catch (t: Throwable) { false }
+            if (!ok) gFail.incrementAndGet()
+        }
+    }
+
     // «хочу» — что просит питон; применяет отдельный поток, так что питон не ждёт системы. Побеждает последнее пожелание.
     @Volatile private var wantDown = false
     @Volatile private var wantX = 0f
@@ -288,6 +316,7 @@ class MacroAccess : AccessibilityService() {
 
     fun releaseAll() {
         wantDown = false
+        cancelHold()
         if (longOn) longHold(hx, hy, false)
         synchronized(tl) { tEnd() }
         waitPending(400)

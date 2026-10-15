@@ -480,7 +480,7 @@ class AndroidWorld:
         _held = False
         bridge().holdFor(pt[0], pt[1], int(max(0.05, secs) * 1000))
 
-    def find_collect(self, bans=()):
+    def find_collect(self, bans=(), near=None):
         """Белый ромб сбора на экране -> (x, y) в пикселях кадра или None."""
         try:
             sz = bridge().screenSize()
@@ -503,11 +503,27 @@ class AndroidWorld:
         pts = [p for p in pts if not any(abs(p[0] - bx) < 50 and abs(p[1] - by) < 50 for bx, by in bans)]
         if not pts:
             return None
+        if near is not None:        # уже держим палец: ближайший к нему кандидат — это та же кнопка, а не «другая»
+            close = [p for p in pts if abs(p[0] - near[0]) <= 45 and abs(p[1] - near[1]) <= 45]
+            if close:
+                return min(close, key=lambda p: abs(p[0] - near[0]) + abs(p[1] - near[1]))
         return pts[0]
 
+    _cs = None      # (x, y, когда нажали, на сколько) — идущее длинное касание сбора
+
     def hold_pixel(self, x: float, y: float, down: bool) -> None:
+        """Палец на точке кадра. Одно длинное касание без «продолжений» (они на эмуляторе обрывались раз в ~1.5 с)."""
         global _held
         _held = False
+        now = time.time()
+        cs = self._cs
+        if not down:
+            if cs is not None:
+                bridge().cancelHold()
+            self._cs = None
+            return
+        if cs is not None and abs(cs[0] - x) <= 8 and abs(cs[1] - y) <= 8 and now - cs[2] < cs[3] - 0.4:
+            return                                  # то же касание ещё идёт
         try:
             d = bridge().displaySize()
             s = bridge().screenSize()
@@ -515,7 +531,9 @@ class AndroidWorld:
             fy = d[1] / float(s[1]) if s[1] else 1.0
         except Exception:  # noqa: BLE001
             fx = fy = 1.0
-        bridge().hold(int(x * fx), int(y * fy), bool(down))
+        ms = 5000
+        bridge().holdAsync(int(x * fx), int(y * fy), ms)
+        self._cs = (x, y, now, ms / 1000.0)
 
     def set_hold(self, down: bool) -> None:
         global _held
@@ -539,6 +557,7 @@ class AndroidWorld:
         NOTE["hold_ms"] = 0.8 * NOTE["hold_ms"] + 0.2 * (time.perf_counter() - t0) * 1000.0
 
     def release_all(self) -> None:
+        self._cs = None
         release_all()
 
 

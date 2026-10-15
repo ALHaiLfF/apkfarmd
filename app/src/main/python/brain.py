@@ -252,7 +252,10 @@ class Brain:
                     self.w.hold_pixel(p[0], p[1], True)     # подтверждаем нажатие каждый шаг: сбросило систему — встанем заново
                     self.sleep(0.12)
                     now = self.w.now()
-                    q = fc(self.dbans)
+                    try:
+                        q = fc(self.dbans, p)
+                    except TypeError:
+                        q = fc(self.dbans)
                     if q is None:
                         gone = gone or now
                         if now - gone > 0.5 and now - t0 > 0.3:
