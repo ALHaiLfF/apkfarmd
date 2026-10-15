@@ -192,18 +192,21 @@ class Brain:
         self.w.tap_key(key, self.v("key_hold_sec"))
         self.sleep(0.7)
 
-    def collect(self) -> None:
+    def collect(self) -> bool:
+        """True — рыбу забрали (или проверить глазами нечем), False — кнопки сбора так и не увидели."""
         self.phase("collect")
         self.ensure_window()
         hold = self.v("collect_hold_sec")
         fc = getattr(self.w, "find_collect", None)
+        got = True
         if self.cfg.get("collect_mode") == "click" and fc is not None and self.cfg.get("visual_collect", True):
-            self.collect_visual(fc, hold)
+            got = self.collect_visual(fc, hold)
         elif self.cfg.get("collect_mode") == "click":
             self.w.hold_collect_click(hold)
         else:
             self.w.tap_key("t", hold)
         self.sleep(self.v("after_collect_sec"))
+        return got
 
     # ---- сбор по глазам: видим ромб — держим, пока не исчезнет; не исчез/сместился — берём заново
     def _diamond(self, fc, wait: float):
@@ -223,7 +226,7 @@ class Brain:
                 return None
             self.sleep(0.08)
 
-    def collect_visual(self, fc, hold: float) -> None:
+    def collect_visual(self, fc, hold: float) -> bool:
         seen = False
         last = None
         for attempt in range(8):
@@ -232,7 +235,7 @@ class Brain:
                 if not seen:
                     self.hub.event("info", "Кнопку сбора не вижу — жму в сохранённую точку")
                     self.w.hold_collect_click(hold)
-                return   # видели и пропал — значит собрано
+                return seen   # видели и пропал — значит собрано
             seen, last = True, p
             t0 = self.w.now()
             gone = None
@@ -259,6 +262,7 @@ class Brain:
             self.dbans.append(last)
             self.dbans = self.dbans[-6:]
             self.hub.event("warn", "Кнопка не исчезает после 8 попыток — считаю его ложным и игнорирую")
+        return seen
 
     def leftover(self) -> bool:
         """Есть ли на экране несобранный ромб (рыба осталась)."""
@@ -540,10 +544,12 @@ class Brain:
             self.err_streak = 0
             self.force_wide = False
             self.last_catch_at = self.w.now()
-            self.hub.catch()
             self.phase("settle")
             self.sleep(self.v("after_minigame_sec"))
-            self.collect()
+            if self.collect():
+                self.hub.catch()
+            else:
+                self.hub.event("warn", "Кнопки сбора не было — рыбу, похоже, не вытянули (миниигра не выиграна)")
             if self.cfg.get("reequip", False) and str(self.cfg.get("rod_key") or "").strip():
                 # убрать и снова взять удочку: сбрасывает «неудачу»/упавшую рыбу и гарантирует, что следующий бросок пройдёт
                 self.hub.event("info", "Убираю и беру удочку заново")

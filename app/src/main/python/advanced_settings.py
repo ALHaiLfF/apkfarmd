@@ -5,7 +5,7 @@ DEFAULT_ADVANCED: dict[str, float] = {
     "accel_hold": 900.0,
     "accel_release": 900.0,
     "ball_ref_px": 24.0,
-    "latency_s": 0.10,
+    "latency_s": 0.20,
     "auto_latency": 1.0,
     "hysteresis_px": 6.0,
     "aim_offset": 0.0,

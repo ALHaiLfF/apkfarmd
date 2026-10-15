@@ -6,8 +6,18 @@ import sim_world as sw
 
 
 class LagSim(sw.SimWorld):
+    pass
+
+
+class FakeGeo(sw.SimWorld):
+    """Геометрия FakeFish: шкала 572 px, шар 45 px, зона 59 px, ускорение 1687 px/с²."""
+    BAR_TOP, BAR_BOT = 170.0, 742.0
+    ACC, BALL, ZH = 1687.0, 45, 29.5
+
+
+class LagSim(FakeGeo):
     def __init__(self, seed, look_cost, hold_lat, obs_delay):
-        super().__init__(seed, 0.0, True)
+        sw.SimWorld.__init__(self, seed, 0.0, True)
         self.look_cost, self.hold_lat, self.obs_delay = look_cost, hold_lat, obs_delay
         self._pending = []
         self._real = False
@@ -36,12 +46,12 @@ class LagSim(sw.SimWorld):
             i = max(0, bisect.bisect_left(ts, self.t - self.obs_delay))
             _, y, zc = self._hist[min(i, len(self._hist) - 1)]
             g = lk.game
-            lk.game = sw.Game(g.ball_x, y, g.ball_w, g.ball_h, g.zone_x0, g.zone_x1, int(zc - 27), int(zc + 27))
+            lk.game = sw.Game(g.ball_x, y, g.ball_w, g.ball_h, g.zone_x0, g.zone_x1, int(zc - self.ZH), int(zc + self.ZH))
         return lk
 
 
-def run(look_cost, hold_lat, obs_delay, auto, hours=0.5, seeds=3):
-    tot = lat = 0
+def run(look_cost, hold_lat, obs_delay, auto, hours=0.25, seeds=2):
+    tot = lat = inz = 0
     for seed in range(seeds):
         w = LagSim(seed, look_cost, hold_lat, obs_delay)
         t_end = hours * 3600
@@ -55,12 +65,13 @@ def run(look_cost, hold_lat, obs_delay, auto, hours=0.5, seeds=3):
         b.run()
         tot += w.true_catches
         lat += (tr.lat_ema or 0)
-    return tot / seeds / hours, lat / seeds
+        inz += getattr(w, 'inzone_total', 0.0) / max(1.0, getattr(w, 'game_total', 1.0))
+    return tot / seeds / hours, lat / seeds, inz / seeds
 
 
 if __name__ == "__main__":
     print("look(мс) | касание(мс) | запаздывание картинки(мс) | уловов/час: фикс 0.10 с -> авто (выученная задержка, мс)")
     for lc, hl, od in [(0.04, 0.03, 0.0), (0.07, 0.03, 0.05), (0.10, 0.04, 0.15), (0.10, 0.05, 0.25), (0.07, 0.05, 0.35), (0.12, 0.06, 0.45)]:
-        f, _ = run(lc, hl, od, False)
-        a, l = run(lc, hl, od, True)
-        print(f"{lc*1000:5.0f} | {hl*1000:5.0f} | {od*1000:5.0f} | {f:5.0f} -> {a:5.0f} (латентность {l*1000:.0f} мс; ожид. ≈{(hl+od+lc/2)*1000:.0f})")
+        f, _, fi = run(lc, hl, od, False)
+        a, l, ai = run(lc, hl, od, True)
+        print(f"{lc*1000:5.0f} | {hl*1000:5.0f} | {od*1000:5.0f} | {f:5.0f} (в зоне {fi*100:.0f}%) -> {a:5.0f} (в зоне {ai*100:.0f}%, латентность {l*1000:.0f} мс; ожид. ≈{(hl+od+lc/2)*1000:.0f})")

@@ -30,6 +30,7 @@ class SimWorld:
     """Виртуальное время. Игра: удочка(переключатель) -> бросок -> поклёвка -> миниигра -> сбор."""
 
     BAR_TOP, BAR_BOT, BAR_X = 300.0, 700.0, 1400.0
+    ACC, BALL, ZH = 900.0, 24, 27.0     # ускорение шара, его размер и половина зоны (px)
 
     def __init__(self, seed: int, chaos: float = 1.0, rod_equipped: bool | None = None) -> None:
         self.rng = random.Random(seed)
@@ -95,15 +96,17 @@ class SimWorld:
             self.y, self.v = 600.0, 0.0
         if self.state == "game":
             held = self.hold and self.fg and self.window_up
-            a = -900.0 if held else 900.0
+            a = -self.ACC if held else self.ACC
             self.v += a * dt
             self.y += self.v * dt
-            lo, hi = self.BAR_TOP + 12, self.BAR_BOT - 12
+            lo, hi = self.BAR_TOP + self.BALL / 2, self.BAR_BOT - self.BALL / 2
             if self.y < lo:
                 self.y, self.v = lo, 0.0
             if self.y > hi:
                 self.y, self.v = hi, 0.0
-            inzone = abs(self.y - self.zone_c(t)) <= 27
+            inzone = abs(self.y - self.zone_c(t)) <= self.ZH
+            self.game_total = getattr(self, 'game_total', 0.0) + dt
+            self.inzone_total = getattr(self, 'inzone_total', 0.0) + (dt if inzone else 0.0)
             self.progress = max(0.0, self.progress + (1.0 if inzone else -0.7) * dt)
             if self.progress >= 4.0 or t - self.game_t0 >= 20.0:
                 self.state = "ready"
@@ -119,7 +122,8 @@ class SimWorld:
             self.noise_until = t + 0.5
 
     def zone_c(self, t: float) -> float:
-        return 500 + 110 * math.sin(0.8 * t) + 35 * math.sin(2.1 * t)
+        span = self.BAR_BOT - self.BAR_TOP
+        return (self.BAR_TOP + self.BAR_BOT) / 2 + 0.275 * span * math.sin(0.8 * t) + 0.0875 * span * math.sin(2.1 * t)
 
     # ---- окно/фокус
     def open(self) -> None:
@@ -160,8 +164,8 @@ class SimWorld:
                 game = None
             else:
                 zc = self.zone_c(self.t)
-                game = Game(self.BAR_X, self.y, 24, 24, int(self.BAR_X - 30), int(self.BAR_X + 30),
-                            int(zc - 27), int(zc + 27))
+                game = Game(self.BAR_X, self.y, self.BALL, self.BALL, int(self.BAR_X - 30), int(self.BAR_X + 30),
+                            int(zc - self.ZH), int(zc + self.ZH))
                 src = "wide" if self.area_wrong else "area"
         elif self.state == "line" and self.t < self.noise_until and (not self.area_wrong or wide):
             y = 400 + 60 * math.sin(7 * self.t)
