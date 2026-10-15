@@ -37,15 +37,35 @@ lat_s = (f"задержка нажатия (вызов макроса -> кас�
          f"вверх n={len(lat[0])} med={q(lat[0],.5)} p90={q(lat[0],.9)} мс; вызовов макроса: {len(Hs)}, касаний в игре: {len(Ev)}; "
          f"средняя ошибка |шар-зона|={statistics.mean(err) if err else -1:.0f}px по {len(tr)} точкам")
 note("notice", "e2e латентность", lat_s)
-Ds = [(int(a), int(b), int(c), int(d), e) for a, b, c, d, e in re.findall(r"^D (\d+) (-?\d+) (-?\d+) (-?\d+) (\w+)$", app, re.M)]
+Ds = [(int(a), int(b), int(c), int(d), e, int(f), int(g)) for a, b, c, d, e, f, g in re.findall(r"^D (\d+) (-?\d+) (-?\d+) (-?\d+) (\w+) (\d+) (\d+)$", app, re.M)]
 trt = [t for t, *_ in tr]
 eb, ez, nz = [], [], 0
-for t, by, zt, zb, src in Ds:
-    i = bisect.bisect_left(trt, t)
+ages = [x[5] for x in Ds]; procs = [x[6] for x in Ds]
+def match(off):
+    eb_, n_ = [], 0
+    for t, by, zt, zb, src, age, proc in Ds:
+        tt = t - proc - age + off          # момент, когда картинка реально была нарисована
+        i = bisect.bisect_left(trt, tt)
+        cand = [j for j in (i - 1, i) if 0 <= j < len(tr)]
+        if not cand: continue
+        j = min(cand, key=lambda j: abs(trt[j] - tt))
+        if abs(trt[j] - tt) > 120: continue
+        eb_.append(by - tr[j][1])
+    return eb_
+scan = []
+for off in range(-300, 301, 50):
+    e_ = match(off)
+    if len(e_) > 20: scan.append((statistics.median(abs(x) for x in e_), off))
+best = min(scan) if scan else None
+note("notice", "e2e возраст картинки", f"возраст кадра при захвате: med={q(ages,.5)} p90={q(ages,.9)} мс; от захвата до решения: med={q(procs,.5)} p90={q(procs,.9)} мс; "
+     f"поправка времени, при которой ошибка шара минимальна: {best[1] if best else '?'} мс (ошибка {best[0] if best else '?'} px); по сетке: {scan}")
+for t, by, zt, zb, src, age, proc in Ds:
+    tt = t - proc - age
+    i = bisect.bisect_left(trt, tt)
     cand = [j for j in (i - 1, i) if 0 <= j < len(tr)]
     if not cand: continue
-    j = min(cand, key=lambda j: abs(trt[j] - t))
-    if abs(trt[j] - t) > 150: continue
+    j = min(cand, key=lambda j: abs(trt[j] - tt))
+    if abs(trt[j] - tt) > 150: continue
     eb.append(by - tr[j][1])
     if zt >= 0:
         nz += 1

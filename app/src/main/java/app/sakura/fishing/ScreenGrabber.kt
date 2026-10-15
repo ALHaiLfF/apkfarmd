@@ -25,6 +25,7 @@ class ScreenGrabber(private val ctx: Context, private val projection: MediaProje
     @Volatile var w = 0
     @Volatile var h = 0
     @Volatile var stamp = 0L
+    @Volatile var imgTs = 0L
     @Volatile var frames = 0L
     @Volatile var alive = true
 
@@ -38,6 +39,14 @@ class ScreenGrabber(private val ctx: Context, private val projection: MediaProje
 
     fun start() {
         handler.post(watch)
+    }
+
+    /** Сколько миллисекунд назад была нарисована картинка, которую мы сейчас держим (по метке времени кадра). -1 — не знаем. */
+    fun contentAgeMs(): Long {
+        val t = imgTs
+        if (t <= 0L) return -1
+        val a = (System.nanoTime() - t) / 1_000_000L
+        return if (a in 0..3000) a else -1
     }
 
     fun ready(): Boolean = alive && w > 0 && synchronized(lock) { img != null }
@@ -56,6 +65,7 @@ class ScreenGrabber(private val ctx: Context, private val projection: MediaProje
                     img?.close()
                     img = n
                     stamp = SystemClock.elapsedRealtime()
+                    imgTs = n.timestamp
                     frames++
                 }
             }

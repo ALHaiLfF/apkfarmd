@@ -36,6 +36,7 @@ class Look:
     game: object = None   # detect.Game | None
     src: str = ""         # "roi" | "area" | "wide"
     ok: bool = True       # удалось ли вообще получить кадр
+    t: float = 0.0        # когда на самом деле была нарисована картинка (часы мира); 0 — не знаем
 
 
 # Лестница исправлений по числу подряд идущих провалов.
@@ -382,6 +383,7 @@ class Brain:
         held_since = None
         held_y0 = best_y = 0.0
         n_loops = n_seen = n_toggle = 0
+        last_obs = t_begin
         was_want = False
         try:
             while True:
@@ -399,7 +401,10 @@ class Brain:
                 if g is not None:
                     last_seen = now
                     near = (g.ball_x, g.ball_y)
-                    self.tr.observe(g.ball_y, g.ball_h, g.zone_top, g.zone_y, now)
+                    t_obs = look.t if look.t > 0 else now
+                    t_obs = min(now, max(t_obs, last_obs + 0.001))
+                    last_obs = t_obs
+                    self.tr.observe(g.ball_y, g.ball_h, g.zone_top, g.zone_y, t_obs)
                     n_seen += 1
                     want = bool(self.tr.decide(now))
                     if want != was_want:

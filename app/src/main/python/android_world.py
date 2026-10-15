@@ -73,7 +73,7 @@ def _cut(r: PixelRect, bounds: PixelRect) -> PixelRect:
 DTRACE: list = []  # (epoch_ms, ball_y, zone_top, zone_bot, src) — что видит детектор, для автотеста
 TRACE: list = []   # (epoch_ms, down) — вызовы set_hold, для автотеста
 _held = False
-NOTE = {"hold": "", "text": "", "fps": 0.0, "t": 0.0, "grab_ms": 0.0, "find_ms": 0.0, "look_ms": 0.0, "hold_ms": 0.0, "holds": 0, "taps": 0, "errs": 0, "err": ""}
+NOTE = {"hold": "", "text": "", "fps": 0.0, "t": 0.0, "age_ms": 0.0, "grab_ms": 0.0, "find_ms": 0.0, "look_ms": 0.0, "hold_ms": 0.0, "holds": 0, "taps": 0, "errs": 0, "err": ""}
 
 
 def release_all() -> None:
@@ -145,6 +145,8 @@ class AndroidWorld:
         self._look_errs = 0
         self._err_logged = 0.0
         self._no_pt_logged = 0.0
+        self._grab_t = 0.0
+        self._grab_age = 0.03
         self._last_cast = 0.0
         self._cast_skipped = 0.0
         try:
@@ -260,8 +262,20 @@ class AndroidWorld:
         if arr is None:
             raise RuntimeError("нет кадра")
         out = _rgba_to_bgr(_u8(arr), w, h)
+        self._note_age(t0)
         NOTE["grab_ms"] = 0.8 * NOTE["grab_ms"] + 0.2 * (time.perf_counter() - t0) * 1000.0
         return out
+
+    def _note_age(self, t_grab: float) -> None:
+        """Запоминает, насколько «старая» картинка попала в руки: стареет она в очереди захвата Android."""
+        try:
+            a = int(bridge().frameAge())
+        except Exception:  # noqa: BLE001
+            a = -1
+        self._grab_t = time.perf_counter()
+        self._grab_age = (a / 1000.0) if a >= 0 else 0.03
+        if a >= 0:
+            NOTE["age_ms"] = 0.9 * NOTE["age_ms"] + 0.1 * a
 
     def _area_px(self, c: PixelRect) -> PixelRect:
         sa = self.cfg.get("scan_area") or {}
@@ -285,7 +299,7 @@ class AndroidWorld:
                 and area.y - w <= g.ball_y <= area.y + area.h + w)
 
     def perf(self) -> str:
-        return f"захват {NOTE['grab_ms']:.0f} мс, детектор {NOTE['find_ms']:.0f} мс, весь взгляд {NOTE['look_ms']:.0f} мс, нажатие {NOTE['hold_ms']:.0f} мс"
+        return f"возраст картинки {NOTE['age_ms']:.0f} мс, захват {NOTE['grab_ms']:.0f} мс, детектор {NOTE['find_ms']:.0f} мс, весь взгляд {NOTE['look_ms']:.0f} мс, нажатие {NOTE['hold_ms']:.0f} мс"
 
     def look(self, near, wide: bool) -> Look:
         t_look = time.perf_counter()
@@ -334,8 +348,9 @@ class AndroidWorld:
                 ((self.scanner.last or "") if game is None or not game.has_zone else "")
             if game is not None and len(DTRACE) < 6000:
                 DTRACE.append((int(time.time() * 1000), int(game.ball_y), game.zone_top if game.has_zone else -1,
-                               game.zone_bot if game.has_zone else -1, src))
-            return Look(game, src if game is not None else "", True)
+                               game.zone_bot if game.has_zone else -1, src, int(self._grab_age * 1000),
+                               int((time.perf_counter() - self._grab_t) * 1000)))
+            return Look(game, src if game is not None else "", True, self._grab_t - self._grab_age)
         except Exception as exc:  # noqa: BLE001
             self._look_errs += 1
             now = time.monotonic()
@@ -356,6 +371,7 @@ class AndroidWorld:
         if arr is None:
             raise RuntimeError("нет кадра")
         small = _rgba_to_bgr(_u8(arr), ow, oh)
+        self._note_age(time.perf_counter())
         sx, sy = c.w / float(ow), c.h / float(oh)
         n = None if near is None else (near[0] / sx, near[1] / sy)
         g = self.wide_scanner.find(small, (0, 0), n)

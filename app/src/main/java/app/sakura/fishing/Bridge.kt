@@ -45,6 +45,8 @@ object Bridge {
         return o.toString()
     }
 
+    @JvmStatic fun frameAge(): Int = (grabber?.contentAgeMs() ?: -1L).toInt()
+
     @JvmStatic fun captureReady(): Boolean = grabber?.ready() == true
 
     /** Размер кадра захвата. */
