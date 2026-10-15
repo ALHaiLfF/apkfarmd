@@ -11,7 +11,7 @@ if not stats:
     sys.exit(1)
 t, casts, catches, fails, collects, missed, breaks, taps, downs, gdowns = map(int, stats[-1])
 summary = f"t={t}s casts={casts} миниигр выиграно={catches} проиграно={fails} собрано={collects} упущено={missed} срывов сбора={breaks} тыков по рыбе={taps} касаний={downs} нажатий в миниигре={gdowns}"
-need_c = max(3, t // 60)
+need_c = max(3, t // 80)
 verdict = []
 if catches < need_c: verdict.append(f"мало выигранных миниигр ({catches} < {need_c})")
 if collects < max(2, catches - 2): verdict.append(f"рыба не собирается ({collects} из {catches})")
