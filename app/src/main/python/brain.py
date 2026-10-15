@@ -227,18 +227,24 @@ class Brain:
             self.sleep(0.08)
 
     def collect_visual(self, fc, hold: float) -> bool:
+        """Видим кнопку — держим палец, пока она не исчезнет. Сместилась — отпускаем и жмём на новом месте.
+        Пропала — ждём, не вернётся ли (рыба «качнулась»); не вернулась — собрано."""
         seen = False
         last = None
         for attempt in range(8):
-            p = self._diamond(fc, 4.0 if not seen else 1.2)
+            p = self._diamond(fc, 4.0 if not seen else 1.8)
             if p is None:
                 if not seen:
                     self.hub.event("info", "Кнопку сбора не вижу — жму в сохранённую точку")
                     self.w.hold_collect_click(hold)
-                return seen   # видели и пропал — значит собрано
+                else:
+                    self.hub.event("info", "Кнопка сбора пропала и не вернулась — рыба собрана")
+                return seen
             seen, last = True, p
             t0 = self.w.now()
             gone = None
+            moved = 0
+            why = "время"
             self.w.hold_pixel(p[0], p[1], True)
             try:
                 while self.w.now() - t0 < hold + 1.0:
@@ -250,18 +256,25 @@ class Brain:
                     if q is None:
                         gone = gone or now
                         if now - gone > 0.5 and now - t0 > 0.3:
+                            why = "пропала"
                             break
                     else:
                         gone = None
+                        if abs(q[0] - p[0]) > 45 or abs(q[1] - p[1]) > 45:
+                            moved += 1
+                            if moved >= 2:
+                                why = "сместилась"
+                                break
+                        else:
+                            moved = 0
             finally:
                 self.w.hold_pixel(p[0], p[1], False)
-            self.sleep(0.25)
-            if attempt >= 1:
-                self.hub.event("info", f"Сбор не прошёл с первого раза, пробую снова ({attempt + 1})")
+            self.hub.event("info", f"Сбор: держал {self.w.now() - t0:.1f} с в ({int(p[0])},{int(p[1])}), кнопка {why}")
+            self.sleep(0.15 if why == "сместилась" else 0.25)
         if last is not None:
             self.dbans.append(last)
             self.dbans = self.dbans[-6:]
-            self.hub.event("warn", "Кнопка не исчезает после 8 попыток — считаю его ложным и игнорирую")
+            self.hub.event("warn", "Кнопка не исчезает после 8 попыток — считаю её ложной и игнорирую")
         return seen
 
     def leftover(self) -> bool:
