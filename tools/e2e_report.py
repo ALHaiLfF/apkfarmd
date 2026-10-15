@@ -74,6 +74,16 @@ def stat(a):
     if not a: return "нет данных"
     a2 = sorted(abs(x) for x in a)
     return f"med|e|={a2[len(a2)//2]:.0f} p90={a2[int(len(a2)*.9)]:.0f} bias={statistics.mean(a):.0f}"
+if tr:
+    t0g = tr[len(tr) // 3][0]
+    rows = []
+    hi = 0
+    seg = [r for r in tr if t0g <= r[0] <= t0g + 14000]
+    for k, (t, b, z, h) in enumerate(seg):
+        t_next = seg[k + 1][0] if k + 1 < len(seg) else t + 100
+        cm = "".join(("v" if d else "^") for tt, d in Hs if t <= tt < t_next)   # v — макрос велел держать, ^ — отпустить
+        rows.append(f"{(t - t0g) / 1000:5.1f} err={b - z:4d} {'#' if h else '.'} {cm}")
+    note("notice", "e2e трасса 14с", "err=шар-зона (минус: шар выше зоны); # — палец реально прижат в игре; v/^ — команды макроса\n" + "\n".join(rows))
 note("notice", "e2e детектор vs правда", f"кадров с шаром={len(Ds)}, с зоной={nz}; шар: {stat(eb)}; центр зоны: {stat(ez)}")
 app = "\n".join(l for l in app.splitlines() if not re.match(r"^[HD] \d+ ", l))
 ev = [l for l in fake.splitlines() if re.search(r"MG_START|MG_END|FISH|COLLECT|CAST|ROD|STAT|START|DETACH", l) and "EV " not in l and " TR " not in l]
