@@ -100,6 +100,31 @@ def boot(files_dir: str) -> int:
             except Exception:  # noqa: BLE001
                 pass
     threading.Thread(target=snapper, name="snapper", daemon=True).start()
+    if os.path.exists(os.path.join(files_dir, "e2e.flag")):
+        def e2e() -> None:
+            started, seen, last_diag = False, 0, 0.0
+            out = os.path.join(files_dir, "e2e.log")
+            while True:
+                time.sleep(1.0)
+                try:
+                    if not started and not check():
+                        sup.start()
+                        started = True
+                    lines = []
+                    for e in list(hub.log):
+                        if e["n"] > seen:
+                            seen = e["n"]
+                            lines.append(f"{time.strftime('%H:%M:%S', time.localtime(e['t']))} [{e['k']}] {e['m']}")
+                    if time.time() - last_diag > 15:
+                        last_diag = time.time()
+                        lines.append("DIAG " + diag(aw.status()) + " | " + aw.NOTE["text"])
+                    if lines:
+                        with open(out, "a", encoding="utf-8") as f:
+                            f.write("\n".join(lines) + "\n")
+                except Exception as exc:  # noqa: BLE001
+                    with open(out, "a", encoding="utf-8") as f:
+                        f.write(f"E2E-ERR {exc!r}\n")
+        threading.Thread(target=e2e, name="e2e", daemon=True).start()
     if cfg.get("autostart") and not check():
         sup.start()
     return port

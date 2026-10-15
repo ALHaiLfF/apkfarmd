@@ -239,6 +239,7 @@ class Brain:
             try:
                 while self.w.now() - t0 < hold + 1.0:
                     self.guard()
+                    self.w.hold_pixel(p[0], p[1], True)     # подтверждаем нажатие каждый шаг: сбросило систему — встанем заново
                     self.sleep(0.12)
                     now = self.w.now()
                     q = fc(self.dbans)
@@ -523,7 +524,7 @@ class Brain:
             self.hub.event("warn", f"Долго не получается ({self.fail_streak}). Передохну 20 с и продолжу")
             self.phase("recover", "Что-то идёт не так, делаю паузу и пробую снова")
             self.sleep(20.0)
-        if (self.fail_streak > 0 or self.last_catch_at == self.last_deep) and self.leftover():
+        if self.leftover():
             self.hub.event("info", "На экране несобранная рыба — собираю")
             self.collect()
         steps = LADDER[self.fail_streak % len(LADDER)]

@@ -50,6 +50,13 @@ class MainActivity : Activity() {
         }
         startForegroundService(Intent(this, CoreService::class.java))
         waitForPanel()
+        if (intent?.getBooleanExtra("e2e", false) == true) {     // только для автотеста в эмуляторе
+            ui.postDelayed({
+                val mpm = getSystemService(MediaProjectionManager::class.java)
+                @Suppress("DEPRECATION")
+                startActivityForResult(mpm.createScreenCaptureIntent(), REQ_CAPTURE)
+            }, 2000)
+        }
     }
 
     @SuppressLint("SetJavaScriptEnabled")

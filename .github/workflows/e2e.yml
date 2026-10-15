@@ -1,0 +1,54 @@
+name: e2e-emulator
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+      - name: Build (x86_64 для эмулятора)
+        run: set -o pipefail; gradle --no-daemon --stacktrace -PciAbi=x86_64 :app:assembleDebug :fakefish:assembleDebug 2>&1 | tee build.log
+      - name: Report build errors
+        if: failure()
+        run: |
+          {
+            grep -n -E "What went wrong|Could not|error:|^e: |FAILED|No matching|ERROR|Caused by" -A6 build.log | head -120
+            echo "----- tail -----"
+            tail -40 build.log
+          } > err.txt
+          msg=$(head -c 30000 err.txt | sed ':a;N;$!ba;s/%/%25/g;s/\r/%0D/g;s/\n/%0A/g')
+          echo "::error title=gradle-e2e::$msg"
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Emulator + автотест
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          target: default
+          profile: pixel_4
+          ram-size: 3072M
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          script: bash tools/e2e.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-out
+          path: e2e-out

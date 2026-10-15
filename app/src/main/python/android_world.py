@@ -188,11 +188,14 @@ class AndroidWorld:
             return True
         if not pkg:
             return True   # не знаем — не гоняем игру туда-сюда
-        return "roblox" in pkg.lower()
+        return self._needle() in pkg.lower()
+
+    def _needle(self) -> str:
+        return str(self.cfg.get("game_pkg") or "roblox").lower()
 
     def focus(self) -> bool:
         try:
-            bridge().launchGame()
+            bridge().launchGame(self._needle())
         except Exception:  # noqa: BLE001
             return False
         end = time.perf_counter() + 6.0

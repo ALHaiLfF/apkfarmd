@@ -24,6 +24,11 @@ class W:
             self.down_at = None
         return self.pos
     def hold_pixel(self, x, y, down):
+        # настоящий движок игнорирует повторное «нажать» на тот же точке — в журнал пишем только смену состояния
+        key = ((round(x), round(y)), bool(down))
+        if getattr(self, "_last_hold", None) == key:
+            return
+        self._last_hold = key
         self.log.append(("hold", round(self.t, 2), (round(x), round(y)), down))
         if down: self.down_at = self.t; self.hx = (x, y)
         else:

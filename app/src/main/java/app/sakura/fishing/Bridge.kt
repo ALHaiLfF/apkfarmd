@@ -71,13 +71,15 @@ object Bridge {
 
     @JvmStatic fun foregroundPkg(): String = access?.foregroundPkg() ?: ""
 
-    @JvmStatic fun launchGame(): Boolean {
+    @JvmStatic fun launchGame(): Boolean = launchGame("roblox")
+
+    @JvmStatic fun launchGame(needle: String): Boolean {
         val ctx: Context = access ?: appCtx ?: return false
         return try {
             val pm = ctx.packageManager
             val q = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
             val hit = pm.queryIntentActivities(q, 0)
-                .firstOrNull { it.activityInfo.packageName.contains("roblox", ignoreCase = true) }
+                .firstOrNull { it.activityInfo.packageName.contains(needle, ignoreCase = true) }
                 ?: return false
             val li = pm.getLaunchIntentForPackage(hit.activityInfo.packageName) ?: return false
             li.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
