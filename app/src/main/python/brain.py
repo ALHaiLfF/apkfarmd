@@ -242,15 +242,17 @@ class Brain:
                 return seen
             seen, last = True, p
             t0 = self.w.now()
+            t_first = t0
             gone = None
             moved = 0
+            jumps = 0
             why = "время"
             self.w.hold_pixel(p[0], p[1], True)
             try:
                 while self.w.now() - t0 < hold + 1.0:
                     self.guard()
                     self.w.hold_pixel(p[0], p[1], True)     # подтверждаем нажатие каждый шаг: сбросило систему — встанем заново
-                    self.sleep(0.12)
+                    self.sleep(0.04)
                     now = self.w.now()
                     try:
                         q = fc(self.dbans, p)
@@ -266,14 +268,20 @@ class Brain:
                         if abs(q[0] - p[0]) > 45 or abs(q[1] - p[1]) > 45:
                             moved += 1
                             if moved >= 2:
-                                why = "сместилась"
-                                break
+                                # кнопка уехала: не отпускаем, а сразу переставляем палец (новое касание само заменяет старое)
+                                jumps += 1
+                                self.hub.event("info", f"Кнопка сместилась ({int(p[0])},{int(p[1])}) -> ({int(q[0])},{int(q[1])}), переставляю палец")
+                                p, last, moved, t0 = q, q, 0, now
+                                if jumps > 6:
+                                    why = "сместилась"
+                                    break
+                                self.w.hold_pixel(p[0], p[1], True)
                         else:
                             moved = 0
             finally:
                 self.w.hold_pixel(p[0], p[1], False)
-            self.hub.event("info", f"Сбор: держал {self.w.now() - t0:.1f} с в ({int(p[0])},{int(p[1])}), кнопка {why}")
-            self.sleep(0.15 if why == "сместилась" else 0.25)
+            self.hub.event("info", f"Сбор: держал {self.w.now() - t_first:.1f} с (переставлял палец {jumps}), кнопка {why}")
+            self.sleep(0.25)
         if last is not None:
             self.dbans.append(last)
             self.dbans = self.dbans[-6:]
